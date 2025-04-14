@@ -4,6 +4,11 @@
 .env
 .env.*
 
+# Virtual environments
+env/
+venv/
+.venv/
+
 # Docker
 docker-compose.yml
 docker-compose.*.yml

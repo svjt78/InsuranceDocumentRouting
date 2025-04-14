@@ -1,32 +1,48 @@
 .
 ├── backend
-│   ├── Dockerfile
+│   ├── Dockerfile.dev
+│   ├── Dockerfile.prod
 │   ├── app
 │   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   ├── bucket_mappings.py
 │   │   ├── config.py
 │   │   ├── database.py
+│   │   ├── email_settings.py
 │   │   ├── llm_classifier.py
+│   │   ├── logging_config.py
+│   │   ├── main copy 2.py
+│   │   ├── main copy.py
 │   │   ├── main.py
+│   │   ├── models copy.py
 │   │   ├── models.py
 │   │   ├── ocr_worker.py
 │   │   ├── pii_masker.py
-│   │   └── rabbitmq.py
+│   │   ├── rabbitmq.py
+│   │   └── schemas.py
 │   └── requirements.txt
 ├── docker-compose.yml
 ├── frontend
-│   ├── Dockerfile
+│   ├── Dockerfile.dev
+│   ├── Dockerfile.prod
 │   ├── components
+│   │   ├── BucketMappingRow.js
+│   │   ├── DocumentCard copy.js
 │   │   ├── DocumentCard.js
+│   │   ├── Layout copy 2.js
+│   │   ├── Layout copy.js
 │   │   └── Layout.js
 │   ├── next.config.js
 │   ├── node_modules
 │   │   ├── @alloc
+│   │   ├── @babel
 │   │   ├── @isaacs
 │   │   ├── @jridgewell
 │   │   ├── @next
 │   │   ├── @nodelib
 │   │   ├── @pkgjs
 │   │   ├── @swc
+│   │   ├── @types
 │   │   ├── ansi-regex
 │   │   ├── ansi-styles
 │   │   ├── any-promise
@@ -41,26 +57,45 @@
 │   │   ├── camelcase-css
 │   │   ├── caniuse-lite
 │   │   ├── chokidar
+│   │   ├── clsx
 │   │   ├── color-convert
 │   │   ├── color-name
 │   │   ├── commander
 │   │   ├── cross-spawn
 │   │   ├── cssesc
+│   │   ├── csstype
+│   │   ├── d3-array
+│   │   ├── d3-color
+│   │   ├── d3-ease
+│   │   ├── d3-format
+│   │   ├── d3-interpolate
+│   │   ├── d3-path
+│   │   ├── d3-scale
+│   │   ├── d3-shape
+│   │   ├── d3-time
+│   │   ├── d3-time-format
+│   │   ├── d3-timer
+│   │   ├── decimal.js-light
 │   │   ├── didyoumean
 │   │   ├── dlv
+│   │   ├── dom-helpers
 │   │   ├── eastasianwidth
 │   │   ├── electron-to-chromium
 │   │   ├── emoji-regex
 │   │   ├── escalade
+│   │   ├── eventemitter3
+│   │   ├── fast-equals
 │   │   ├── fast-glob
 │   │   ├── fastq
 │   │   ├── fill-range
 │   │   ├── foreground-child
 │   │   ├── fraction.js
+│   │   ├── fsevents
 │   │   ├── function-bind
 │   │   ├── glob
 │   │   ├── glob-parent
 │   │   ├── hasown
+│   │   ├── internmap
 │   │   ├── is-binary-path
 │   │   ├── is-core-module
 │   │   ├── is-extglob
@@ -73,6 +108,7 @@
 │   │   ├── js-tokens
 │   │   ├── lilconfig
 │   │   ├── lines-and-columns
+│   │   ├── lodash
 │   │   ├── loose-envify
 │   │   ├── lru-cache
 │   │   ├── merge2
@@ -101,11 +137,19 @@
 │   │   ├── postcss-nested
 │   │   ├── postcss-selector-parser
 │   │   ├── postcss-value-parser
+│   │   ├── prop-types
 │   │   ├── queue-microtask
 │   │   ├── react
 │   │   ├── react-dom
+│   │   ├── react-icons
+│   │   ├── react-is
+│   │   ├── react-smooth
+│   │   ├── react-transition-group
 │   │   ├── read-cache
 │   │   ├── readdirp
+│   │   ├── recharts
+│   │   ├── recharts-scale
+│   │   ├── regenerator-runtime
 │   │   ├── resolve
 │   │   ├── reusify
 │   │   ├── run-parallel
@@ -124,22 +168,32 @@
 │   │   ├── tailwindcss
 │   │   ├── thenify
 │   │   ├── thenify-all
+│   │   ├── tiny-invariant
 │   │   ├── to-regex-range
 │   │   ├── ts-interface-checker
 │   │   ├── tslib
 │   │   ├── update-browserslist-db
 │   │   ├── use-sync-external-store
 │   │   ├── util-deprecate
+│   │   ├── victory-vendor
 │   │   ├── which
 │   │   ├── wrap-ansi
 │   │   ├── wrap-ansi-cjs
 │   │   └── yaml
+│   ├── package copy.json
 │   ├── package-lock.json
 │   ├── package.json
 │   ├── pages
+│   │   ├── _app.js
+│   │   ├── configuration copy 2.js
+│   │   ├── configuration copy.js
+│   │   ├── configuration.js
 │   │   ├── document
+│   │   ├── documents copy.js
 │   │   ├── documents.js
-│   │   └── index.js
+│   │   ├── index copy.js
+│   │   ├── index.js
+│   │   └── metrics.js
 │   ├── postcss.config.js
 │   ├── styles
 │   │   └── globals.css
@@ -175,4 +229,4 @@
     │   └── python3.10
     └── pyvenv.cfg
 
-130 directories, 46 files
+163 directories, 67 files
