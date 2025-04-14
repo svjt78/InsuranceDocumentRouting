@@ -1,0 +1,23 @@
+# Root-level .gitignore
+
+# Environment files
+.env
+.env.*
+
+# Docker
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile
+.dockerignore
+
+# IDEs / Editors
+.vscode/
+.idea/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

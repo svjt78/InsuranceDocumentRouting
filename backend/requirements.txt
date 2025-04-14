@@ -1,0 +1,13 @@
+python-dotenv
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+pika
+pytesseract
+opencv-python
+boto3
+pillow
+openai
+python-multipart
+

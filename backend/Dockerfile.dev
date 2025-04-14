@@ -1,0 +1,23 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install system dependencies required for Tesseract and OpenCV
+RUN apt-get update && apt-get install -y \
+    tesseract-ocr \
+    libtesseract-dev \
+    gcc \
+    libopencv-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# In development mode, you may copy the rest of the code,
+# but this will typically be overridden by a volume mount in docker-compose.
+COPY . .
+
+EXPOSE 8000
+
+# Start Uvicorn in development mode with hot reload enabled
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

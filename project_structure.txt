@@ -1,0 +1,178 @@
+.
+├── backend
+│   ├── Dockerfile
+│   ├── app
+│   │   ├── __init__.py
+│   │   ├── config.py
+│   │   ├── database.py
+│   │   ├── llm_classifier.py
+│   │   ├── main.py
+│   │   ├── models.py
+│   │   ├── ocr_worker.py
+│   │   ├── pii_masker.py
+│   │   └── rabbitmq.py
+│   └── requirements.txt
+├── docker-compose.yml
+├── frontend
+│   ├── Dockerfile
+│   ├── components
+│   │   ├── DocumentCard.js
+│   │   └── Layout.js
+│   ├── next.config.js
+│   ├── node_modules
+│   │   ├── @alloc
+│   │   ├── @isaacs
+│   │   ├── @jridgewell
+│   │   ├── @next
+│   │   ├── @nodelib
+│   │   ├── @pkgjs
+│   │   ├── @swc
+│   │   ├── ansi-regex
+│   │   ├── ansi-styles
+│   │   ├── any-promise
+│   │   ├── anymatch
+│   │   ├── arg
+│   │   ├── autoprefixer
+│   │   ├── balanced-match
+│   │   ├── binary-extensions
+│   │   ├── brace-expansion
+│   │   ├── braces
+│   │   ├── browserslist
+│   │   ├── camelcase-css
+│   │   ├── caniuse-lite
+│   │   ├── chokidar
+│   │   ├── color-convert
+│   │   ├── color-name
+│   │   ├── commander
+│   │   ├── cross-spawn
+│   │   ├── cssesc
+│   │   ├── didyoumean
+│   │   ├── dlv
+│   │   ├── eastasianwidth
+│   │   ├── electron-to-chromium
+│   │   ├── emoji-regex
+│   │   ├── escalade
+│   │   ├── fast-glob
+│   │   ├── fastq
+│   │   ├── fill-range
+│   │   ├── foreground-child
+│   │   ├── fraction.js
+│   │   ├── function-bind
+│   │   ├── glob
+│   │   ├── glob-parent
+│   │   ├── hasown
+│   │   ├── is-binary-path
+│   │   ├── is-core-module
+│   │   ├── is-extglob
+│   │   ├── is-fullwidth-code-point
+│   │   ├── is-glob
+│   │   ├── is-number
+│   │   ├── isexe
+│   │   ├── jackspeak
+│   │   ├── jiti
+│   │   ├── js-tokens
+│   │   ├── lilconfig
+│   │   ├── lines-and-columns
+│   │   ├── loose-envify
+│   │   ├── lru-cache
+│   │   ├── merge2
+│   │   ├── micromatch
+│   │   ├── minimatch
+│   │   ├── minipass
+│   │   ├── mz
+│   │   ├── nanoid
+│   │   ├── next
+│   │   ├── node-releases
+│   │   ├── normalize-path
+│   │   ├── normalize-range
+│   │   ├── object-assign
+│   │   ├── object-hash
+│   │   ├── package-json-from-dist
+│   │   ├── path-key
+│   │   ├── path-parse
+│   │   ├── path-scurry
+│   │   ├── picocolors
+│   │   ├── picomatch
+│   │   ├── pify
+│   │   ├── pirates
+│   │   ├── postcss
+│   │   ├── postcss-import
+│   │   ├── postcss-js
+│   │   ├── postcss-nested
+│   │   ├── postcss-selector-parser
+│   │   ├── postcss-value-parser
+│   │   ├── queue-microtask
+│   │   ├── react
+│   │   ├── react-dom
+│   │   ├── read-cache
+│   │   ├── readdirp
+│   │   ├── resolve
+│   │   ├── reusify
+│   │   ├── run-parallel
+│   │   ├── scheduler
+│   │   ├── shebang-command
+│   │   ├── shebang-regex
+│   │   ├── signal-exit
+│   │   ├── source-map-js
+│   │   ├── string-width
+│   │   ├── string-width-cjs
+│   │   ├── strip-ansi
+│   │   ├── strip-ansi-cjs
+│   │   ├── styled-jsx
+│   │   ├── sucrase
+│   │   ├── supports-preserve-symlinks-flag
+│   │   ├── tailwindcss
+│   │   ├── thenify
+│   │   ├── thenify-all
+│   │   ├── to-regex-range
+│   │   ├── ts-interface-checker
+│   │   ├── tslib
+│   │   ├── update-browserslist-db
+│   │   ├── use-sync-external-store
+│   │   ├── util-deprecate
+│   │   ├── which
+│   │   ├── wrap-ansi
+│   │   ├── wrap-ansi-cjs
+│   │   └── yaml
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── pages
+│   │   ├── document
+│   │   ├── documents.js
+│   │   └── index.js
+│   ├── postcss.config.js
+│   ├── styles
+│   │   └── globals.css
+│   └── tailwind.config.js
+├── project_structure.txt
+└── venv
+    ├── bin
+    │   ├── Activate.ps1
+    │   ├── __pycache__
+    │   ├── activate
+    │   ├── activate.csh
+    │   ├── activate.fish
+    │   ├── distro
+    │   ├── dotenv
+    │   ├── f2py
+    │   ├── fastapi
+    │   ├── httpx
+    │   ├── jp.py
+    │   ├── numpy-config
+    │   ├── openai
+    │   ├── pip
+    │   ├── pip3
+    │   ├── pip3.10
+    │   ├── pytesseract
+    │   ├── python -> /Users/SD60006/.pyenv/versions/3.10.12/bin/python
+    │   ├── python3 -> python
+    │   ├── python3.10 -> python
+    │   ├── tqdm
+    │   └── uvicorn
+    ├── include
+    │   └── site
+    ├── lib
+    │   └── python3.10
+    └── pyvenv.cfg
+
+130 directories, 46 files

@@ -1,0 +1,18 @@
+FROM node:16-alpine
+
+WORKDIR /app
+
+# Copy package files and install dependencies
+COPY package*.json ./
+RUN npm install
+
+# Optionally, you may copy the rest of the code here for initial build,
+# but in development this will be overridden by the volume mount.
+# COPY . .
+
+ENV PORT=3001
+
+EXPOSE 3001
+
+# Run the development server to enable hot reloading
+CMD ["npm", "run", "dev"]
