@@ -1,17 +1,14 @@
-# backend/app/email_settings.py
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 import logging
 
 from .database import SessionLocal
-from . import models
-from . import schemas  # Import the new schemas
+from . import models, schemas
 
-router = APIRouter()
+# Create the router WITHOUT a prefix so that main.py's include_router determines the effective path.
+router = APIRouter(tags=["Email Settings"])
 logger = logging.getLogger("email_settings")
 
-# Dependency: get DB session
 def get_db():
     db = SessionLocal()
     try:
@@ -19,13 +16,13 @@ def get_db():
     finally:
         db.close()
 
-@router.get("/email-settings", response_model=list[schemas.EmailSettingOut])
+@router.get("/", response_model=list[schemas.EmailSettingOut])
 def get_email_settings(db: Session = Depends(get_db)):
     """Retrieve all email settings."""
     settings = db.query(models.EmailSetting).all()
     return settings
 
-@router.post("/email-settings", response_model=schemas.EmailSettingOut)
+@router.post("/", response_model=schemas.EmailSettingOut)
 def create_email_setting(setting_data: schemas.EmailSettingCreate, db: Session = Depends(get_db)):
     """Create a new email setting."""
     email_setting = models.EmailSetting(
@@ -42,7 +39,7 @@ def create_email_setting(setting_data: schemas.EmailSettingCreate, db: Session =
         logger.error(f"Error creating email setting: {e}")
         raise HTTPException(status_code=500, detail="Error creating email setting")
 
-@router.put("/email-settings/{setting_id}", response_model=schemas.EmailSettingOut)
+@router.put("/{setting_id}", response_model=schemas.EmailSettingOut)
 def update_email_setting(setting_id: int, update_data: schemas.EmailSettingUpdate, db: Session = Depends(get_db)):
     """Update an existing email setting."""
     setting = db.query(models.EmailSetting).filter(models.EmailSetting.id == setting_id).first()
@@ -59,7 +56,7 @@ def update_email_setting(setting_id: int, update_data: schemas.EmailSettingUpdat
         logger.error(f"Error updating email setting {setting_id}: {e}")
         raise HTTPException(status_code=500, detail="Error updating email setting")
 
-@router.delete("/email-settings/{setting_id}")
+@router.delete("/{setting_id}")
 def delete_email_setting(setting_id: int, db: Session = Depends(get_db)):
     """Delete an email setting."""
     setting = db.query(models.EmailSetting).filter(models.EmailSetting.id == setting_id).first()

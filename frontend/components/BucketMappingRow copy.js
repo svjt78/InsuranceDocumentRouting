@@ -17,7 +17,6 @@ export default function BucketMappingRow({ mapping, departmentsOptions, onSave, 
     } else {
       setCategoriesOptions([]);
     }
-    // Reset category and subcategory selections when department changes.
     setSelectedCategory("");
     setSubcategoriesOptions([]);
     setSelectedSubcategory("");
@@ -38,14 +37,13 @@ export default function BucketMappingRow({ mapping, departmentsOptions, onSave, 
     } else {
       setSubcategoriesOptions([]);
     }
-    // Reset subcategory selection when category changes.
     setSelectedSubcategory("");
   }, [selectedCategory, selectedDepartment, departmentsOptions]);
 
   const handleSave = () => {
     const newMapping = {
-      id: mapping.id, // may be undefined for a new mapping
-      bucket_name: bucketName, // use snake_case to match backend model
+      id: mapping.id, // This could be undefined for a new mapping
+      bucket_name: bucketName,  // updated key
       department: selectedDepartment,
       category: selectedCategory,
       subcategory: selectedSubcategory,
@@ -57,7 +55,7 @@ export default function BucketMappingRow({ mapping, departmentsOptions, onSave, 
     if (mapping.id) {
       onDelete(mapping.id);
     } else {
-      // If the mapping is new and unsaved, pass the mapping object for removal.
+      // If the mapping is new and unsaved, simply remove it from the list in the parent.
       onDelete(null, mapping);
     }
   };

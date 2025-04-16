@@ -10,12 +10,15 @@ RUN apt-get update && apt-get install -y \
     libopencv-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# In development mode, you may copy the rest of the code,
-# but this will typically be overridden by a volume mount in docker-compose.
+# Copy all application code
 COPY . .
+
+# ✅ Ensure the seed_data folder (and its JSON) is inside the image
+# (Already covered by `COPY . .` — no extra line needed unless .dockerignore blocks it)
 
 EXPOSE 8000
 

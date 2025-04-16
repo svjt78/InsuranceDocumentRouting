@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
+from datetime import datetime
 
 from .database import SessionLocal
 from . import models
 
 # Pydantic schemas for BucketMapping
-
 class BucketMappingBase(BaseModel):
     bucket_name: str
     department: str
@@ -25,8 +25,8 @@ class BucketMappingUpdate(BaseModel):
 
 class BucketMappingOut(BucketMappingBase):
     id: int
-    created_at: Optional[str]
-    updated_at: Optional[str]
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
 
     class Config:
         orm_mode = True
@@ -39,8 +39,8 @@ def get_db():
     finally:
         db.close()
 
-# Define the router with an appropriate prefix
-router = APIRouter(prefix="/bucket-mappings", tags=["Bucket Mappings"])
+# Define the router WITHOUT a prefix so that main.py include_router call determines the final path.
+router = APIRouter(tags=["Bucket Mappings"])
 
 @router.get("/", response_model=List[BucketMappingOut])
 def read_bucket_mappings(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -55,7 +55,6 @@ def create_bucket_mapping(mapping: BucketMappingCreate, db: Session = Depends(ge
     """
     Create a new bucket mapping.
     """
-    # Check for existing bucket mapping by bucket_name to avoid duplicates
     existing_mapping = db.query(models.BucketMapping).filter(
         models.BucketMapping.bucket_name == mapping.bucket_name
     ).first()

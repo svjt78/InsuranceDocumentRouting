@@ -19,7 +19,9 @@
 │   │   ├── ocr_worker.py
 │   │   ├── pii_masker.py
 │   │   ├── rabbitmq.py
-│   │   └── schemas.py
+│   │   ├── routes
+│   │   ├── schemas.py
+│   │   └── seed_data
 │   └── requirements.txt
 ├── docker-compose.yml
 ├── frontend
@@ -229,4 +231,4 @@
     │   └── python3.10
     └── pyvenv.cfg
 
-163 directories, 67 files
+165 directories, 67 files

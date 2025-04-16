@@ -1,67 +1,13 @@
-// File: pages/configuration.js
 import { useState, useEffect } from "react";
 import Layout from "../components/Layout";
 import { FaSave, FaTrashAlt } from "react-icons/fa";
-
-// Sample static data for cascading dropdowns – ideally fetched dynamically.
-const DEPARTMENTS_DATA = [
-  {
-    department: "Policy Management / Underwriting",
-    categories: [
-      {
-        category: "Policy Applications",
-        subcategories: [
-          "New Policy Applications",
-          "Application Forms",
-          "Proof of Identity and Address",
-          "Vehicle Registration Documents"
-        ]
-      },
-      {
-        category: "Renewals",
-        subcategories: ["Policy Renewal Notices"]
-      },
-      {
-        category: "Endorsements",
-        subcategories: ["Policy Amendments/Endorsements"]
-      }
-    ]
-  },
-  {
-    department: "Claims",
-    categories: [
-      {
-        category: "Claims Filing",
-        subcategories: [
-          "Claim Forms",
-          "Accident Reports",
-          "Police Reports",
-          "Photos of Damages"
-        ]
-      },
-      {
-        category: "Claims Investigation",
-        subcategories: [
-          "Accident Reports",
-          "Medical Records (for injury claims)",
-          "Repair Estimates",
-          "Photos of Damages"
-        ]
-      },
-      {
-        category: "Claims Settlement",
-        subcategories: ["Medical Bills", "Repair Estimates"]
-      }
-    ]
-  },
-  // ... add the remaining department entries as needed.
-];
 
 /* --------------------------------------------------------------------------
    Subcomponent: BucketMappingRow
 -------------------------------------------------------------------------- */
 function BucketMappingRow({ mapping, departmentData, onSave, onDelete, onUpdate }) {
-  const [bucketName, setBucketName] = useState(mapping.bucketName || "");
+  // Initialize state using backend's key name "bucket_name"
+  const [bucketName, setBucketName] = useState(mapping.bucket_name || "");
   const [department, setDepartment] = useState(mapping.department || "");
   const [category, setCategory] = useState(mapping.category || "");
   const [subcategory, setSubcategory] = useState(mapping.subcategory || "");
@@ -73,7 +19,8 @@ function BucketMappingRow({ mapping, departmentData, onSave, onDelete, onUpdate 
   const subcategories = selectedCat ? selectedCat.subcategories : [];
 
   useEffect(() => {
-    onUpdate({ ...mapping, bucketName, department, category, subcategory });
+    // Call onUpdate with consistent snake_case keys
+    onUpdate({ ...mapping, bucket_name: bucketName, department, category, subcategory });
   }, [bucketName, department, category, subcategory]);
 
   return (
@@ -156,12 +103,14 @@ function BucketMappingRow({ mapping, departmentData, onSave, onDelete, onUpdate 
    Subcomponent: EmailSettingsRow
 -------------------------------------------------------------------------- */
 function EmailSettingsRow({ setting, departmentData, onSave, onDelete, onUpdate }) {
+  // Initialize state using backend key "email_addresses"
   const [department, setDepartment] = useState(setting.department || "");
-  const [emails, setEmails] = useState(setting.emails || "");
+  const [emailAddresses, setEmailAddresses] = useState(setting.email_addresses || "");
 
   useEffect(() => {
-    onUpdate({ ...setting, department, emails });
-  }, [department, emails]);
+    // Update using the expected key "email_addresses"
+    onUpdate({ ...setting, department, email_addresses: emailAddresses });
+  }, [department, emailAddresses]);
 
   return (
     <tr className="border-b border-gray-700">
@@ -184,8 +133,8 @@ function EmailSettingsRow({ setting, departmentData, onSave, onDelete, onUpdate 
           type="text"
           className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1"
           placeholder="Enter email(s), separated by commas"
-          value={emails}
-          onChange={(e) => setEmails(e.target.value)}
+          value={emailAddresses}
+          onChange={(e) => setEmailAddresses(e.target.value)}
         />
       </td>
       <td className="p-2 flex space-x-4">
@@ -206,20 +155,100 @@ function EmailSettingsRow({ setting, departmentData, onSave, onDelete, onUpdate 
    Main Configuration Component
 -------------------------------------------------------------------------- */
 export default function Configuration() {
-  // State for MinIO Bucket Mappings
+  // Dynamic department hierarchy fetched from /lookup endpoint.
+  const [departmentData, setDepartmentData] = useState([]);
+  // Fallback static hierarchy if dynamic data is unavailable.
+  const staticData = [
+    {
+      department: "Policy Management / Underwriting",
+      categories: [
+        {
+          category: "Policy Applications",
+          subcategories: [
+            "New Policy Applications",
+            "Application Forms",
+            "Proof of Identity and Address",
+            "Vehicle Registration Documents"
+          ]
+        },
+        {
+          category: "Renewals",
+          subcategories: ["Policy Renewal Notices"]
+        },
+        {
+          category: "Endorsements",
+          subcategories: ["Policy Amendments/Endorsements"]
+        }
+      ]
+    },
+    {
+      department: "Claims",
+      categories: [
+        {
+          category: "Claims Filing",
+          subcategories: [
+            "Claim Forms",
+            "Accident Reports",
+            "Police Reports",
+            "Photos of Damages"
+          ]
+        },
+        {
+          category: "Claims Investigation",
+          subcategories: [
+            "Accident Reports",
+            "Medical Records (for injury claims)",
+            "Repair Estimates",
+            "Photos of Damages"
+          ]
+        },
+        {
+          category: "Claims Settlement",
+          subcategories: ["Medical Bills", "Repair Estimates"]
+        }
+      ]
+    }
+    // ... add remaining department entries as needed.
+  ];
+
+  // State for MinIO Bucket Mappings.
   const [bucketMappings, setBucketMappings] = useState([]);
   const [loadingBucket, setLoadingBucket] = useState(true);
   const [errorBucket, setErrorBucket] = useState("");
 
-  // State for Email Notification Settings
+  // State for Email Notification Settings.
   const [emailSettings, setEmailSettings] = useState([]);
   const [loadingEmail, setLoadingEmail] = useState(true);
   const [errorEmail, setErrorEmail] = useState("");
 
-  // State for Ingestion Mode (default "realtime")
+  // State for Ingestion Mode (default "realtime").
   const [ingestionMode, setIngestionMode] = useState("realtime");
 
-  // Fetch existing Bucket Mappings
+  // Fetch document hierarchy from /lookup endpoint.
+  useEffect(() => {
+    async function fetchHierarchy() {
+      try {
+        const res = await fetch("http://localhost:8000/lookup");
+        if (!res.ok) throw new Error("Failed to fetch hierarchy");
+        const raw = await res.json();
+        const transformed = Object.entries(raw).map(([dept, cats]) => ({
+          department: dept,
+          categories: Object.entries(cats).map(([cat, subs]) => ({
+            category: cat,
+            subcategories: subs
+          }))
+        }));
+        setDepartmentData(transformed);
+      } catch (err) {
+        console.error("Failed to fetch department hierarchy", err);
+        // Use static data as fallback.
+        setDepartmentData(staticData);
+      }
+    }
+    fetchHierarchy();
+  }, []);
+
+  // Fetch existing Bucket Mappings.
   useEffect(() => {
     async function fetchBuckets() {
       try {
@@ -236,7 +265,7 @@ export default function Configuration() {
     fetchBuckets();
   }, []);
 
-  // Fetch existing Email Settings
+  // Fetch existing Email Settings.
   useEffect(() => {
     async function fetchEmailSettings() {
       try {
@@ -253,7 +282,7 @@ export default function Configuration() {
     fetchEmailSettings();
   }, []);
 
-  // Handlers for Bucket Mapping updates
+  // Handlers for Bucket Mapping updates.
   const handleBucketRowUpdate = (updatedRow) => {
     setBucketMappings((prev) =>
       prev.map((row) => (row.id === updatedRow.id ? updatedRow : row))
@@ -264,16 +293,19 @@ export default function Configuration() {
     const rowData = bucketMappings.find((r) => r.id === id);
     if (!rowData) return;
     try {
+      // Construct payload using the consistent keys from the mapping object.
+      const payload = {
+        bucket_name: rowData.bucket_name, // use the updated key
+        department: rowData.department,
+        category: rowData.category,
+        subcategory: rowData.subcategory,
+      };
+      console.log("Saving bucket mapping payload:", payload);
       if (rowData.isNew) {
         const res = await fetch("http://localhost:8000/bucket-mappings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            bucketName: rowData.bucketName,
-            department: rowData.department,
-            category: rowData.category,
-            subcategory: rowData.subcategory,
-          }),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error("POST failed");
         const savedRow = await res.json();
@@ -284,12 +316,7 @@ export default function Configuration() {
         const res = await fetch(`http://localhost:8000/bucket-mappings/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            bucketName: rowData.bucketName,
-            department: rowData.department,
-            category: rowData.category,
-            subcategory: rowData.subcategory,
-          }),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error("PUT failed");
         const savedRow = await res.json();
@@ -323,7 +350,7 @@ export default function Configuration() {
   const handleAddBucketMapping = () => {
     const newMapping = {
       id: Date.now(), // Temporary ID
-      bucketName: "",
+      bucket_name: "", // use bucket_name here for consistency
       department: "",
       category: "",
       subcategory: "",
@@ -332,7 +359,7 @@ export default function Configuration() {
     setBucketMappings([...bucketMappings, newMapping]);
   };
 
-  // Handlers for Email Settings rows
+  // Handlers for Email Settings rows.
   const handleEmailRowUpdate = (updatedRow) => {
     setEmailSettings((prev) =>
       prev.map((row) => (row.id === updatedRow.id ? updatedRow : row))
@@ -343,14 +370,16 @@ export default function Configuration() {
     const rowData = emailSettings.find((r) => r.id === id);
     if (!rowData) return;
     try {
+      // Construct payload: convert emails to email_addresses
+      const payload = {
+        department: rowData.department,
+        email_addresses: rowData.email_addresses || rowData.emails,
+      };
       if (rowData.isNew) {
         const res = await fetch("http://localhost:8000/email-settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            department: rowData.department,
-            emails: rowData.emails,
-          }),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error("POST failed");
         const savedRow = await res.json();
@@ -361,10 +390,7 @@ export default function Configuration() {
         const res = await fetch(`http://localhost:8000/email-settings/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            department: rowData.department,
-            emails: rowData.emails,
-          }),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error("PUT failed");
         const savedRow = await res.json();
@@ -399,13 +425,13 @@ export default function Configuration() {
     const newSetting = {
       id: Date.now(),
       department: "",
-      emails: "",
+      email_addresses: "", // use email_addresses for consistency
       isNew: true,
     };
     setEmailSettings([...emailSettings, newSetting]);
   };
 
-  // Handler for saving Ingestion Mode
+  // Handler for saving Ingestion Mode.
   const handleSaveIngestionMode = async () => {
     try {
       const res = await fetch("http://localhost:8000/ingestion-mode", {
@@ -450,7 +476,7 @@ export default function Configuration() {
                       <BucketMappingRow
                         key={mapping.id}
                         mapping={mapping}
-                        departmentData={DEPARTMENTS_DATA}
+                        departmentData={departmentData.length ? departmentData : staticData}
                         onSave={handleBucketSaveRow}
                         onDelete={handleBucketDeleteRow}
                         onUpdate={handleBucketRowUpdate}
@@ -490,7 +516,7 @@ export default function Configuration() {
                       <EmailSettingsRow
                         key={setting.id}
                         setting={setting}
-                        departmentData={DEPARTMENTS_DATA}
+                        departmentData={departmentData.length ? departmentData : staticData}
                         onSave={handleEmailSaveRow}
                         onDelete={handleEmailDeleteRow}
                         onUpdate={handleEmailRowUpdate}

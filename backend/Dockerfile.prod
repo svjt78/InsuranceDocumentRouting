@@ -10,11 +10,17 @@ RUN apt-get update && apt-get install -y \
     libopencv-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy all application code including seed_data
 COPY . .
+
+# Optional: verify seed_data copied successfully at build time
+RUN test -f /app/app/seed_data/doc_hierarchy.json
 
 EXPOSE 8000
 
+# Start the FastAPI server in production mode
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

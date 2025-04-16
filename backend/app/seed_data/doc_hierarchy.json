@@ -1,0 +1,170 @@
+[
+    {
+      "department": "Policy Management / Underwriting",
+      "categories": [
+        {
+          "category": "Policy Applications",
+          "subcategories": [
+            "New Policy Applications",
+            "Application Forms",
+            "Proof of Identity and Address",
+            "Vehicle Registration Documents"
+          ]
+        },
+        {
+          "category": "Renewals",
+          "subcategories": [
+            "Policy Renewal Notices"
+          ]
+        },
+        {
+          "category": "Endorsements",
+          "subcategories": [
+            "Policy Amendments/Endorsements"
+          ]
+        }
+      ]
+    },
+    {
+      "department": "Claims",
+      "categories": [
+        {
+          "category": "Claims Filing",
+          "subcategories": [
+            "Claim Forms",
+            "Accident Reports",
+            "Police Reports",
+            "Photos of Damages"
+          ]
+        },
+        {
+          "category": "Claims Investigation",
+          "subcategories": [
+            "Accident Reports",
+            "Medical Records (for injury claims)",
+            "Repair Estimates",
+            "Photos of Damages"
+          ]
+        },
+        {
+          "category": "Claims Settlement",
+          "subcategories": [
+            "Medical Bills",
+            "Repair Estimates"
+          ]
+        }
+      ]
+    },
+    {
+      "department": "Underwriting",
+      "categories": [
+        {
+          "category": "Risk Assessment",
+          "subcategories": [
+            "Risk Evaluation Reports",
+            "Driving Records",
+            "Credit Reports",
+            "Vehicle Inspection Reports"
+          ]
+        },
+        {
+          "category": "Policy Issuance",
+          "subcategories": [
+            "Premium Calculation Documents"
+          ]
+        }
+      ]
+    },
+    {
+      "department": "Customer Service",
+      "categories": [
+        {
+          "category": "General Inquiries",
+          "subcategories": [
+            "Billing Queries",
+            "Coverage Clarifications",
+            "Email Correspondence",
+            "Call Logs"
+          ]
+        },
+        {
+          "category": "Complaints",
+          "subcategories": [
+            "Billing Queries",
+            "Email Correspondence",
+            "Call Logs"
+          ]
+        },
+        {
+          "category": "Feedback",
+          "subcategories": [
+            "Feedback Forms"
+          ]
+        }
+      ]
+    },
+    {
+      "department": "Legal & Compliance",
+      "categories": [
+        {
+          "category": "Regulatory Compliance",
+          "subcategories": [
+            "Compliance Reports",
+            "Regulatory Filings"
+          ]
+        },
+        {
+          "category": "Dispute Resolution",
+          "subcategories": [
+            "Legal Notices",
+            "Subpoenas"
+          ]
+        }
+      ]
+    },
+    {
+      "department": "Finance & Billing",
+      "categories": [
+        {
+          "category": "Payments",
+          "subcategories": [
+            "Premium Payments",
+            "Payment Receipts"
+          ]
+        },
+        {
+          "category": "Refunds",
+          "subcategories": [
+            "Refund Requests",
+            "Payment Receipts"
+          ]
+        },
+        {
+          "category": "Financial Reporting",
+          "subcategories": [
+            "Bank Statements"
+          ]
+        }
+      ]
+    },
+    {
+      "department": "Marketing & Sales",
+      "categories": [
+        {
+          "category": "Promotions",
+          "subcategories": [
+            "Marketing Campaigns",
+            "Brochures"
+          ]
+        },
+        {
+          "category": "New Business Acquisition",
+          "subcategories": [
+            "Sales Proposals",
+            "Proposal Documents"
+          ]
+        }
+      ]
+    }
+  ]
+  
