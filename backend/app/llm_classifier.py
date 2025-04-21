@@ -1,35 +1,68 @@
-import openai
-import json
+# backend/app/llm_classifier.py  (replace file)
+
+import openai, json, logging, time
+from sqlalchemy.orm import Session
+from .database import SessionLocal
+from . import models
 from .config import OPENAI_API_KEY
 
+logger = logging.getLogger("llm_classifier")
 openai.api_key = OPENAI_API_KEY
 
-def classify_document(extracted_text: str) -> dict:
-    prompt = f"""
-You are an insurance document classifier. Given the document text below, determine:
-1. The Department (one of 7, e.g., Claims, Policy Management, Underwriting, etc.)
-2. The Category (e.g., Policy Application, Claim Filing, Renewal, etc.)
-3. The Subcategory (e.g., New Application, Renewal Notice, Endorsement, etc.)
-4. A bullet-point summary of key points.
-5. A checklist of recommended action items.
+_CACHE_TTL = 600          # 10 minutes
+_last_refresh = 0.0
+_hierarchy_prompt = ""     # cached string
 
-Return a valid JSON object with keys "department", "category", "subcategory", "summary", and "action_items".
+def _refresh_hierarchy_cache():
+    global _last_refresh, _hierarchy_prompt
+    if time.time() - _last_refresh < _CACHE_TTL:
+        return
+    db: Session = SessionLocal()
+    try:
+        rows = db.query(models.DocHierarchy).all()
+        triples = sorted({(r.department, r.category, r.subcategory) for r in rows})
+        lines = [
+            f"- Department: {dep} | Category: {cat} | Sub‑category: {sub}"
+            for dep, cat, sub in triples
+        ]
+        _hierarchy_prompt = "\n".join(lines)
+        _last_refresh = time.time()
+        logger.info("Hierarchy cache refreshed with %d triples", len(triples))
+    finally:
+        db.close()
+
+def classify_document(extracted_text: str) -> dict:
+    _refresh_hierarchy_cache()
+    prompt = f"""
+You are an insurance‑document classifier.  ONLY use a combination present below.
+Hierarchy (do NOT invent new names):
+{_hierarchy_prompt}
+
+Classify the document and return valid JSON:
+{{
+ "department": "...",
+ "category": "...",
+ "subcategory": "...",
+ "summary": "single paragraph; clauses separated by semicolons.",
+ "action_items": ["First item", "Second item", …]   # numbered later in UI
+}}
 
 Document Text:
 \"\"\"{extracted_text}\"\"\"
-    """
+"""
     try:
-      #  response = openai.ChatCompletion.create(
-      #      model="gpt-3.5-turbo",
-      #      messages=[
-      #          {"role": "system", "content": "You are an expert document classifier."},
-      #          {"role": "user", "content": prompt}
-      #      ],
-      #      temperature=0.0
-      #  )
-        result_text = response.choices[0].message['content']
-        result = json.loads(result_text)
-        return result
+        resp = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system",
+                 "content": "Return ONLY the JSON object. No markdown."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.0,
+        )
+        raw = resp.choices[0].message.content
+        logger.debug("LLM raw: %s", raw)
+        return json.loads(raw)
     except Exception as e:
-        print(f"LLM classification error: {e}")
+        logger.exception("LLM failure: %s", e)
         return {}

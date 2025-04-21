@@ -1,71 +1,58 @@
-from .logging_config import setup_logging
-
-# Initialize logging before anything else
-setup_logging()
-
-import logging
-from typing import Optional  # kept in case you need it elsewhere
-
-logger = logging.getLogger("main")
-
+# backend/app/main.py
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-import uuid
-import json
-import boto3
-import os
+from sqlalchemy import text             # 🆕  used for quick row‑count
+import uuid, json, os, logging, boto3
 from botocore.exceptions import ClientError
 
+from .logging_config import setup_logging
 from . import models, database
 from .rabbitmq import publish_message
-
-# Routers
 from .bucket_mappings import router as bucket_mappings_router
-from . import email_settings
+from .email_settings import router as email_settings_router
+from .routes.doc_hierarchy import router as doc_hierarchy_router
+from .seed_data.seed_hierarchy import run_seed            # 🆕  auto‑seed helper
+from .config import (
+    DATABASE_URL,
+    RABBITMQ_URL,
+    MINIO_ENDPOINT,
+    AWS_ACCESS_KEY_ID,
+    AWS_SECRET_ACCESS_KEY,
+)
 
-# ---- hierarchy seeder ----
-from .seed_data.seed_hierarchy import run_seed
-# --------------------------
-
-from .routes import doc_hierarchy as doc_hierarchy_router
-
-# Setup logging (extra safeguard)
-logging.basicConfig(level=logging.INFO)
+# ─────────────────────────────────────────  setup  ─────────────────────────────────────────
+setup_logging()
 logger = logging.getLogger("main")
 
 app = FastAPI(
     title="Insurance Document API",
-    description=(
-        "Handles uploads, OCR, classification of insurance documents, and "
-        "MinIO bucket mapping management."
-    ),
+    description="Handles uploads, OCR, classification of insurance documents, bucket mapping, "
+                "email settings, and ingestion mode.",
 )
 
-# Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3001"],
+    #allow_origins=["http://localhost:3001"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Load config from environment
-MINIO_URL = os.getenv("MINIO_ENDPOINT")
-AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-BUCKET = os.getenv("MINIO_BUCKET", "documents")
-
-# MinIO client
+# ────────────────────────────────────────  MinIO  ──────────────────────────────────────────
 s3_client = boto3.client(
     "s3",
-    endpoint_url=MINIO_URL,
+    endpoint_url=MINIO_ENDPOINT,
     aws_access_key_id=AWS_ACCESS_KEY_ID,
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
 )
+BUCKET = os.getenv("MINIO_BUCKET", "documents")
 
-# DB session dependency
+# simple in‑memory toggle (could live in DB later)
+_ingestion_mode = os.getenv("INGESTION_MODE", "realtime")
+
+# ────────────────────────────────────────  DB dep  ─────────────────────────────────────────
 def get_db():
     db = database.SessionLocal()
     try:
@@ -73,159 +60,182 @@ def get_db():
     finally:
         db.close()
 
-
+# ───────────────────────────────────────  startup  ─────────────────────────────────────────
 @app.on_event("startup")
 def startup() -> None:
-    """Ensure tables, seed hierarchy, check MinIO bucket."""
     logger.info("Starting up application…")
 
-    # Tables
-    models.Base.metadata.create_all(bind=database.engine)
-    logger.info("Database tables ensured (including doc_hierarchy).")
+    # 1) (optional) create tables if you don’t run Alembic separately
+    # models.Base.metadata.create_all(bind=database.engine)
 
-    # Seed hierarchy (idempotent)
-    run_seed()
+    # 2) Auto‑seed doc_hierarchy once
+    with database.engine.begin() as conn:
+        cnt = conn.execute(text("SELECT COUNT(*) FROM doc_hierarchy")).scalar()
+        if cnt == 0:
+            logger.info("doc_hierarchy empty – seeding initial hierarchy")
+            run_seed()
+        else:
+            logger.info("doc_hierarchy already populated (%s rows)", cnt)
 
-    # Bucket
+    # 3) Ensure MinIO bucket exists
     try:
         s3_client.head_bucket(Bucket=BUCKET)
-        logger.info("MinIO bucket '%s' already exists.", BUCKET)
+        logger.info("MinIO bucket '%s' exists.", BUCKET)
     except ClientError as e:
-        if e.response["Error"].get("Code", "") in (
-            "404",
-            "403",
-            "NoSuchBucket",
-            "AccessDenied",
-        ):
+        code = e.response["Error"].get("Code", "")
+        if code in ("404", "403", "NoSuchBucket", "AccessDenied"):
             s3_client.create_bucket(Bucket=BUCKET)
             logger.info("MinIO bucket '%s' created.", BUCKET)
         else:
-            logger.exception("MinIO error on bucket check: %s", e)
+            logger.exception("Error checking/creating MinIO bucket: %s", e)
             raise
 
-
-# Routers
-app.include_router(bucket_mappings_router, prefix="/bucket-mappings", tags=["Bucket Mappings"])
-app.include_router(email_settings.router, prefix="/email-settings", tags=["Email Settings"])
-app.include_router(doc_hierarchy_router.router, prefix="/lookup", tags=["Lookup"])
-
-
-# ---------- Document APIs ----------
+# ─────────────────────────────────────  API – upload  ──────────────────────────────────────
 @app.post("/upload")
 async def upload_document(
-    background_tasks: BackgroundTasks,  # BackgroundTasks must come first
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    logger.info("Received file upload request: %s", file.filename)
+    logger.info("Received upload: %s", file.filename)
+    file_id  = str(uuid.uuid4())
+    s3_key   = f"{file_id}_{file.filename}"
+    tmp_path = f"/tmp/{s3_key}"
 
-    file_id = str(uuid.uuid4())
-    file_location = f"/tmp/{file_id}_{file.filename}"
-    s3_key = f"{file_id}_{file.filename}"
-
-    # Save locally
+    # local temp write
+    content = await file.read()
     try:
-        content = await file.read()
-        with open(file_location, "wb") as f:
+        with open(tmp_path, "wb") as f:
             f.write(content)
-        logger.info("File saved locally at: %s", file_location)
     except Exception as e:
-        logger.exception("Failed to save file locally: %s", e)
+        logger.exception("Local write failed: %s", e)
         raise HTTPException(status_code=500, detail="File write error")
 
-    # Upload to MinIO
+    # MinIO upload
     try:
-        s3_client.upload_file(file_location, BUCKET, s3_key)
-        logger.info("File uploaded to MinIO: %s", s3_key)
+        s3_client.upload_file(tmp_path, BUCKET, s3_key)
     except Exception as e:
-        logger.exception("Failed to upload to MinIO: %s", e)
+        logger.exception("MinIO upload failed: %s", e)
         raise HTTPException(status_code=500, detail="MinIO upload failed")
 
-    # Insert DB record
+    # DB record
     try:
-        document = models.Document(filename=file.filename, s3_key=s3_key, status="pending")
-        db.add(document)
-        db.commit()
-        db.refresh(document)
-        logger.info("Inserted document into DB with ID: %s", document.id)
+        doc = models.Document(filename=file.filename, s3_key=s3_key, status="pending")
+        db.add(doc); db.commit(); db.refresh(doc)
     except Exception as e:
         db.rollback()
-        logger.exception("Failed to commit to DB: %s", e)
+        logger.exception("DB insert failed: %s", e)
         raise HTTPException(status_code=500, detail="Database insert failed")
 
-    # Publish message to RabbitMQ
+    # RabbitMQ notify
     try:
-        message = json.dumps({"doc_id": document.id, "s3_key": s3_key})
-        publish_message("document_queue", message)
-        logger.info("Published message to RabbitMQ for document ID: %s", document.id)
+        publish_message("document_queue", json.dumps({"doc_id": doc.id, "s3_key": s3_key}))
     except Exception as e:
-        logger.exception("Failed to publish message to RabbitMQ: %s", e)
+        logger.exception("RabbitMQ publish failed: %s", e)
         raise HTTPException(status_code=500, detail="RabbitMQ publish failed")
 
-    return {"message": "File uploaded successfully", "document_id": document.id}
+    return {"message": "Uploaded successfully", "document_id": doc.id}
 
-
+# ─────────────────────────────────────  API – queries  ──────────────────────────────────────
 @app.get("/documents")
 def get_documents(db: Session = Depends(get_db)):
-    logger.info("Fetching all documents from DB…")
-    documents = db.query(models.Document).all()
+    docs = db.query(models.Document).all()
     return [
         {
-            "id": doc.id,
-            "filename": doc.filename,
-            "department": doc.department,
-            "category": doc.category,
-            "subcategory": doc.subcategory,
-            "summary": doc.summary,
-            "action_items": doc.action_items,
-            "status": doc.status,
+            "id": d.id,
+            "filename": d.filename,
+            "department": d.department,
+            "category": d.category,
+            "subcategory": d.subcategory,
+            "summary": d.summary,
+            "action_items": d.action_items,
+            "status": d.status,
+            "updated_at": d.updated_at,
+            "created_at": d.created_at,
+            "destination_bucket": d.destination_bucket,
+            "destination_key":    d.destination_key,
         }
-        for doc in documents
+        for d in docs
     ]
-
 
 @app.get("/document/{doc_id}")
 def get_document(doc_id: int, db: Session = Depends(get_db)):
-    logger.info("Fetching document with ID: %s", doc_id)
-    document = db.query(models.Document).filter(models.Document.id == doc_id).first()
-    if not document:
+    d = db.query(models.Document).filter(models.Document.id == doc_id).first()
+    if not d:
         logger.warning("Document not found: %s", doc_id)
         raise HTTPException(status_code=404, detail="Document not found")
     return {
-        "id": document.id,
-        "filename": document.filename,
-        "s3_key": document.s3_key,
-        "extracted_text": document.extracted_text,
-        "department": document.department,
-        "category": document.category,
-        "subcategory": document.subcategory,
-        "summary": document.summary,
-        "action_items": document.action_items,
-        "status": document.status,
+        "id": d.id,
+        "filename": d.filename,
+        "s3_key": d.s3_key,
+        "extracted_text": d.extracted_text,
+        "department": d.department,
+        "category": d.category,
+        "subcategory": d.subcategory,
+        "summary": d.summary,
+        "action_items": d.action_items,
+        "status": d.status,
+        "updated_at": d.updated_at,
+        "created_at": d.created_at,
+        "destination_bucket": d.destination_bucket,
+        "destination_key":    d.destination_key,
     }
 
-
+# ─────────────────────────────────────  API – override  ─────────────────────────────────────
 @app.post("/document/{doc_id}/override")
 def override_document(doc_id: int, override: dict, db: Session = Depends(get_db)):
-    logger.info("Overriding document with ID: %s", doc_id)
-    document = db.query(models.Document).filter(models.Document.id == doc_id).first()
-    if not document:
-        logger.warning("Document not found for override: %s", doc_id)
+    d = db.query(models.Document).filter(models.Document.id == doc_id).first()
+    if not d:
+        logger.warning("Override target not found: %s", doc_id)
         raise HTTPException(status_code=404, detail="Document not found")
 
-    document.department = override.get("department", document.department)
-    document.category = override.get("category", document.category)
-    document.subcategory = override.get("subcategory", document.subcategory)
-    document.summary = override.get("summary", document.summary)
-    document.action_items = override.get("action_items", document.action_items)
-    document.status = "overridden"
+    for field in ("department", "category", "subcategory", "summary", "action_items"):
+        if override.get(field) is not None:
+            setattr(d, field, override[field])
+    d.status = "overridden"
 
     try:
         db.commit()
-        logger.info("Document %s overridden and saved.", doc_id)
     except Exception as e:
         db.rollback()
-        logger.exception("Failed to override document %s: %s", doc_id, e)
-        raise HTTPException(status_code=500, detail="Document override failed")
+        logger.exception("Override commit failed: %s", e)
+        raise HTTPException(status_code=500, detail="Override failed")
 
-    return {"message": "Document classification overridden", "document_id": doc_id}
+    return {"message": "Override saved", "document_id": doc_id}
+
+# soft‑delete
+@app.delete("/document/{doc_id}", status_code=204)
+def delete_document(doc_id: int, db: Session = Depends(get_db)):
+    d = db.query(models.Document).filter(models.Document.id == doc_id).first()
+    if not d:
+        raise HTTPException(status_code=404, detail="Document not found")
+    db.delete(d)
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.exception("Delete failed: %s", e)
+        raise HTTPException(status_code=500, detail="Delete failed")
+
+# ─────────────────────────────────  ingestion‑mode endpoints  ───────────────────────────────
+from pydantic import BaseModel
+class IngestionModePayload(BaseModel):
+    mode: str  # "realtime" or "batch"
+
+@app.get("/ingestion-mode")
+def get_ingestion_mode():
+    return {"mode": _ingestion_mode}
+
+@app.put("/ingestion-mode")
+def set_ingestion_mode(payload: IngestionModePayload):
+    global _ingestion_mode
+    if payload.mode not in ("realtime", "batch"):
+        raise HTTPException(status_code=400, detail="Invalid mode")
+    _ingestion_mode = payload.mode
+    logger.info("Ingestion mode set to: %s", _ingestion_mode)
+    return {"mode": _ingestion_mode}
+
+# ─────────────────────────────  include feature routers  ───────────────────────────────────
+app.include_router(bucket_mappings_router, prefix="/bucket-mappings", tags=["Bucket Mappings"])
+app.include_router(email_settings_router,  prefix="/email-settings",    tags=["Email Settings"])
+app.include_router(doc_hierarchy_router,   prefix="/lookup",            tags=["Lookup"])

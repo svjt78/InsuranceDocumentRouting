@@ -6,21 +6,25 @@ class Document(Base):
     __tablename__ = 'documents'
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String, nullable=False)
-    s3_key = Column(String, nullable=False)   # Key in minIO storage
+    s3_key = Column(String, nullable=False)  # Key in MinIO storage
     extracted_text = Column(Text)
     department = Column(String)
     category = Column(String)
     subcategory = Column(String)
     summary = Column(Text)
     action_items = Column(Text)  # Could be JSON serialized later
-    status = Column(String, default='pending')  # pending, processing, processed, failed, overridden
+    status = Column(String, default='pending')  # pending, processing, processed, failed, overridden, etc.
+    # New fields:
+    destination_bucket = Column(String, nullable=True)
+    destination_key    = Column(String, nullable=True)
+    error_message      = Column(Text,   nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 class BucketMapping(Base):
     __tablename__ = 'bucket_mappings'
     id = Column(Integer, primary_key=True, index=True)
-    bucket_name = Column(String, nullable=False, unique=True)
+    bucket_name = Column(String, nullable=False, unique=False)
     department = Column(String, nullable=False)
     category = Column(String, nullable=False)
     subcategory = Column(String, nullable=False)

@@ -53,13 +53,8 @@ def read_bucket_mappings(skip: int = 0, limit: int = 100, db: Session = Depends(
 @router.post("/", response_model=BucketMappingOut)
 def create_bucket_mapping(mapping: BucketMappingCreate, db: Session = Depends(get_db)):
     """
-    Create a new bucket mapping.
+    Create a new bucket mapping.  Duplicate bucket_name values are now allowed.
     """
-    existing_mapping = db.query(models.BucketMapping).filter(
-        models.BucketMapping.bucket_name == mapping.bucket_name
-    ).first()
-    if existing_mapping:
-        raise HTTPException(status_code=400, detail="Bucket mapping already exists")
     new_mapping = models.BucketMapping(**mapping.dict())
     db.add(new_mapping)
     db.commit()

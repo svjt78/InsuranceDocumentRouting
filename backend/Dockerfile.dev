@@ -1,9 +1,12 @@
+# backend/Dockerfile.dev
+
 FROM python:3.9-slim
 
 WORKDIR /app
 
-# Install system dependencies required for Tesseract and OpenCV
+# Install system dependencies required for PDF support, Tesseract and OpenCV
 RUN apt-get update && apt-get install -y \
+    poppler-utils \
     tesseract-ocr \
     libtesseract-dev \
     gcc \
@@ -14,13 +17,10 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all application code
+# Copy all application code (including seed_data)
 COPY . .
-
-# ✅ Ensure the seed_data folder (and its JSON) is inside the image
-# (Already covered by `COPY . .` — no extra line needed unless .dockerignore blocks it)
 
 EXPOSE 8000
 
-# Start Uvicorn in development mode with hot reload enabled
+# Start Uvicorn in development mode with hot reload
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

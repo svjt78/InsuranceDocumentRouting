@@ -34,3 +34,5 @@ Thumbs.db
 # Optional: lock files (only if you're not locking)
 # package-lock.json
 # yarn.lock
+* copy*
+
