@@ -1,8 +1,9 @@
 # backend/app/main.py
+
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import text             # 🆕  used for quick row‑count
+from sqlalchemy import text
 import uuid, json, os, logging, boto3
 from botocore.exceptions import ClientError
 
@@ -12,7 +13,7 @@ from .rabbitmq import publish_message
 from .bucket_mappings import router as bucket_mappings_router
 from .email_settings import router as email_settings_router
 from .routes.doc_hierarchy import router as doc_hierarchy_router
-from .seed_data.seed_hierarchy import run_seed            # 🆕  auto‑seed helper
+from .seed_data.seed_hierarchy import run_seed
 from .config import (
     DATABASE_URL,
     RABBITMQ_URL,
@@ -20,8 +21,9 @@ from .config import (
     AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY,
 )
+from .destination_service import process_document_destination  # 🆕 import bucket routing logic
 
-# ─────────────────────────────────────────  setup  ─────────────────────────────────────────
+# ───────────────────────────────────────── setup ───────────────────────────────────────────
 setup_logging()
 logger = logging.getLogger("main")
 
@@ -33,14 +35,13 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    #allow_origins=["http://localhost:3001"],
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ────────────────────────────────────────  MinIO  ──────────────────────────────────────────
+# ───────────────────────────────────────── MinIO ────────────────────────────────────────────
 s3_client = boto3.client(
     "s3",
     endpoint_url=MINIO_ENDPOINT,
@@ -49,10 +50,10 @@ s3_client = boto3.client(
 )
 BUCKET = os.getenv("MINIO_BUCKET", "documents")
 
-# simple in‑memory toggle (could live in DB later)
+# simple in‑memory toggle
 _ingestion_mode = os.getenv("INGESTION_MODE", "realtime")
 
-# ────────────────────────────────────────  DB dep  ─────────────────────────────────────────
+# ───────────────────────────────────────── DB dep ───────────────────────────────────────────
 def get_db():
     db = database.SessionLocal()
     try:
@@ -60,15 +61,12 @@ def get_db():
     finally:
         db.close()
 
-# ───────────────────────────────────────  startup  ─────────────────────────────────────────
+# ───────────────────────────────────────── startup ─────────────────────────────────────────
 @app.on_event("startup")
 def startup() -> None:
     logger.info("Starting up application…")
 
-    # 1) (optional) create tables if you don’t run Alembic separately
-    # models.Base.metadata.create_all(bind=database.engine)
-
-    # 2) Auto‑seed doc_hierarchy once
+    # Auto‑seed doc_hierarchy
     with database.engine.begin() as conn:
         cnt = conn.execute(text("SELECT COUNT(*) FROM doc_hierarchy")).scalar()
         if cnt == 0:
@@ -77,7 +75,7 @@ def startup() -> None:
         else:
             logger.info("doc_hierarchy already populated (%s rows)", cnt)
 
-    # 3) Ensure MinIO bucket exists
+    # Ensure MinIO bucket exists
     try:
         s3_client.head_bucket(Bucket=BUCKET)
         logger.info("MinIO bucket '%s' exists.", BUCKET)
@@ -90,7 +88,7 @@ def startup() -> None:
             logger.exception("Error checking/creating MinIO bucket: %s", e)
             raise
 
-# ─────────────────────────────────────  API – upload  ──────────────────────────────────────
+# ───────────────────────────────────────── API – upload ─────────────────────────────────────
 @app.post("/upload")
 async def upload_document(
     background_tasks: BackgroundTasks,
@@ -120,7 +118,7 @@ async def upload_document(
 
     # DB record
     try:
-        doc = models.Document(filename=file.filename, s3_key=s3_key, status="pending")
+        doc = models.Document(filename=file.filename, s3_key=s3_key, status="Pending")
         db.add(doc); db.commit(); db.refresh(doc)
     except Exception as e:
         db.rollback()
@@ -136,7 +134,7 @@ async def upload_document(
 
     return {"message": "Uploaded successfully", "document_id": doc.id}
 
-# ─────────────────────────────────────  API – queries  ──────────────────────────────────────
+# ───────────────────────────────────────── API – queries ────────────────────────────────────
 @app.get("/documents")
 def get_documents(db: Session = Depends(get_db)):
     docs = db.query(models.Document).all()
@@ -181,29 +179,115 @@ def get_document(doc_id: int, db: Session = Depends(get_db)):
         "destination_key":    d.destination_key,
     }
 
-# ─────────────────────────────────────  API – override  ─────────────────────────────────────
+# ──────────────────────────────────────── background task ──────────────────────────────────
+def _reroute_document(doc_id: int):
+    """Background task to copy file to new bucket and update DB."""
+    db = database.SessionLocal()
+    try:
+        doc = db.query(models.Document).get(doc_id)
+        if not doc:
+            return
+
+        success, error_msg, dest_bucket, dest_key = process_document_destination(
+            doc, db, s3_client, BUCKET
+        )
+
+        doc.destination_bucket = dest_bucket
+        doc.destination_key = dest_key
+        doc.error_message = error_msg
+
+        if success:
+            doc.status = "Processed with Override"
+        else:
+            doc.status = "No Destination" if error_msg.startswith("No matching") else "failed"
+
+        db.commit()
+
+    except Exception as e:
+        logger.exception("Background reroute failed for doc_id=%s: %s", doc_id, e)
+        db.rollback()
+    finally:
+        db.close()
+
+# ─────────────────────────────────────── API – override ────────────────────────────────────
 @app.post("/document/{doc_id}/override")
-def override_document(doc_id: int, override: dict, db: Session = Depends(get_db)):
+def override_document(
+    doc_id: int,
+    override: dict,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     d = db.query(models.Document).filter(models.Document.id == doc_id).first()
     if not d:
         logger.warning("Override target not found: %s", doc_id)
         raise HTTPException(status_code=404, detail="Document not found")
 
+    # detect changes
+    orig_dept, orig_cat, orig_subcat = d.department, d.category, d.subcategory
+    classification_changed = (
+        (override.get("department") and override["department"] != orig_dept) or
+        (override.get("category")   and override["category"]   != orig_cat) or
+        (override.get("subcategory")and override["subcategory"]!= orig_subcat)
+    )
+    summary_changed = (
+        override.get("summary") is not None and override["summary"] != d.summary
+    )
+    action_changed = (
+        override.get("action_items") is not None and override["action_items"] != d.action_items
+    )
+
+    # if no field changed, return as-is without touching status
+    if not (classification_changed or summary_changed or action_changed):
+        return {
+            "id": d.id,
+            "department": d.department,
+            "category": d.category,
+            "subcategory": d.subcategory,
+            "summary": d.summary,
+            "action_items": d.action_items,
+            "status": d.status,
+            "destination_bucket": d.destination_bucket,
+            "destination_key":    d.destination_key,
+        }
+
+    # apply overrides
     for field in ("department", "category", "subcategory", "summary", "action_items"):
         if override.get(field) is not None:
             setattr(d, field, override[field])
-    d.status = "overridden"
 
+    # set status
+    if classification_changed:
+        d.status = "Processed with Override"
+    elif summary_changed or action_changed:
+        d.status = "Overridden"
+
+    # commit immediate changes
     try:
         db.commit()
+        db.refresh(d)
     except Exception as e:
         db.rollback()
         logger.exception("Override commit failed: %s", e)
         raise HTTPException(status_code=500, detail="Override failed")
 
-    return {"message": "Override saved", "document_id": doc_id}
+    # schedule background bucket copy if classification changed
+    if classification_changed:
+        background_tasks.add_task(_reroute_document, doc_id)
 
-# soft‑delete
+    # return full updated record
+    return {
+        "id": d.id,
+        "department": d.department,
+        "category": d.category,
+        "subcategory": d.subcategory,
+        "summary": d.summary,
+        "action_items": d.action_items,
+        "status": d.status,
+        "destination_bucket": d.destination_bucket,
+        "destination_key":    d.destination_key,
+    }
+
+# ────────────────────────────────────── soft‑delete ───────────────────────────────────────
 @app.delete("/document/{doc_id}", status_code=204)
 def delete_document(doc_id: int, db: Session = Depends(get_db)):
     d = db.query(models.Document).filter(models.Document.id == doc_id).first()
@@ -217,7 +301,7 @@ def delete_document(doc_id: int, db: Session = Depends(get_db)):
         logger.exception("Delete failed: %s", e)
         raise HTTPException(status_code=500, detail="Delete failed")
 
-# ─────────────────────────────────  ingestion‑mode endpoints  ───────────────────────────────
+# ───────────────────────────────────── ingestion‑mode endpoints ───────────────────────────
 from pydantic import BaseModel
 class IngestionModePayload(BaseModel):
     mode: str  # "realtime" or "batch"
@@ -235,7 +319,7 @@ def set_ingestion_mode(payload: IngestionModePayload):
     logger.info("Ingestion mode set to: %s", _ingestion_mode)
     return {"mode": _ingestion_mode}
 
-# ─────────────────────────────  include feature routers  ───────────────────────────────────
+# ───────────────────────────────── include routers ──────────────────────────────────────────
 app.include_router(bucket_mappings_router, prefix="/bucket-mappings", tags=["Bucket Mappings"])
 app.include_router(email_settings_router,  prefix="/email-settings",    tags=["Email Settings"])
 app.include_router(doc_hierarchy_router,   prefix="/lookup",            tags=["Lookup"])

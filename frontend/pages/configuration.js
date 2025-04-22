@@ -11,6 +11,8 @@ function BucketMappingRow({ mapping, departmentData, onSave, onDelete, onUpdate 
   const [department, setDepartment] = useState(mapping.department || "");
   const [category, setCategory] = useState(mapping.category || "");
   const [subcategory, setSubcategory] = useState(mapping.subcategory || "");
+  // validation state
+  const [nameError, setNameError] = useState("");
 
   // Derive available categories and subcategories based on selected department/category.
   const selectedDept = departmentData.find((d) => d.department === department);
@@ -18,10 +20,20 @@ function BucketMappingRow({ mapping, departmentData, onSave, onDelete, onUpdate 
   const selectedCat = categories.find((c) => c.category === category);
   const subcategories = selectedCat ? selectedCat.subcategories : [];
 
+  // inform parent of any field changes
   useEffect(() => {
-    // Call onUpdate with consistent snake_case keys
     onUpdate({ ...mapping, bucket_name: bucketName, department, category, subcategory });
   }, [bucketName, department, category, subcategory]);
+
+  // bucket-name format check
+  useEffect(() => {
+    const valid = /^[a-z0-9-]+$/.test(bucketName);
+    setNameError(
+      bucketName && !valid
+        ? "Bucket names may only contain lowercase letters, digits, and hyphens."
+        : ""
+    );
+  }, [bucketName]);
 
   return (
     <tr className="border-b border-gray-700">
@@ -33,6 +45,9 @@ function BucketMappingRow({ mapping, departmentData, onSave, onDelete, onUpdate 
           onChange={(e) => setBucketName(e.target.value)}
           placeholder="Bucket Name"
         />
+        {nameError && (
+          <p className="text-red-400 text-sm mt-1">{nameError}</p>
+        )}
       </td>
       <td className="p-2">
         <select
@@ -87,8 +102,12 @@ function BucketMappingRow({ mapping, departmentData, onSave, onDelete, onUpdate 
       </td>
       <td className="p-2 flex space-x-4">
         <FaSave
-          className="text-green-400 hover:text-green-600 cursor-pointer"
-          onClick={() => onSave(mapping.id)}
+          className={`text-green-400 hover:text-green-600 cursor-pointer ${
+            nameError ? "opacity-50 cursor-not-allowed" : ""
+          }`}
+          onClick={() => {
+            if (!nameError) onSave(mapping.id);
+          }}
         />
         <FaTrashAlt
           className="text-red-400 hover:text-red-600 cursor-pointer"

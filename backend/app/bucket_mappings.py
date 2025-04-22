@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from datetime import datetime
 
 from .database import SessionLocal
 from . import models
-
+import re
 # Pydantic schemas for BucketMapping
 class BucketMappingBase(BaseModel):
     bucket_name: str
