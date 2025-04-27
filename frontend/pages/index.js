@@ -1,5 +1,6 @@
 import Layout from '../components/Layout';
 import Link from 'next/link';
+import OrgChart from '../components/OrgChart';
 
 export default function Home() {
   return (
@@ -12,6 +13,10 @@ export default function Home() {
             View Documents
           </a>
         </Link>
+
+        {/* <-- Org chart */}
+        <OrgChart />
+
       </div>
     </Layout>
   );

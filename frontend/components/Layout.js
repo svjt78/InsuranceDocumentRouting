@@ -1,3 +1,4 @@
+// components/Layout.js
 import Head from 'next/head';
 import Link from 'next/link';
 
@@ -29,9 +30,19 @@ export default function Layout({ children, title = "Insurance Dashboard" }) {
               </Link>
             </li>
             <li className="mb-4">
-              <Link href="/configuration">
-                <a className="hover:underline">Configuration</a>
-              </Link>
+              <span className="font-semibold">Configuration</span>
+              <ul className="pl-4 mt-2 space-y-1">
+                <li>
+                  <Link href="/configuration">
+                    <a className="hover:underline">Settings</a>
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/configuration/hierarchy">
+                    <a className="hover:underline">Hierarchy</a>
+                  </Link>
+                </li>
+              </ul>
             </li>
           </ul>
         </nav>

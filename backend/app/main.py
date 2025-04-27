@@ -14,6 +14,7 @@ from .bucket_mappings import router as bucket_mappings_router
 from .email_settings import router as email_settings_router
 from .routes.doc_hierarchy import router as doc_hierarchy_router
 from .seed_data.seed_hierarchy import run_seed
+from .metrics.router import router as metrics_router
 from .config import (
     DATABASE_URL,
     RABBITMQ_URL,
@@ -323,3 +324,5 @@ def set_ingestion_mode(payload: IngestionModePayload):
 app.include_router(bucket_mappings_router, prefix="/bucket-mappings", tags=["Bucket Mappings"])
 app.include_router(email_settings_router,  prefix="/email-settings",    tags=["Email Settings"])
 app.include_router(doc_hierarchy_router,   prefix="/lookup",            tags=["Lookup"])
+#app.include_router(metrics_router,  prefix="/metrics", tags=["Metrics"])  
+app.include_router(metrics_router)

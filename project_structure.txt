@@ -7,7 +7,9 @@
 │   ├── env.py
 │   ├── script.py.mako
 │   └── versions
-│       └── __pycache__
+│       ├── 7c32de80124d_initial_schema.py
+│       ├── __pycache__
+│       └── d1abef2ac307_drop_unique_constraint_on_bucket_name.py
 ├── alembic.ini
 ├── backend
 │   ├── Dockerfile.dev
@@ -24,34 +26,31 @@
 │   │   ├── email_settings.py
 │   │   ├── llm_classifier.py
 │   │   ├── logging_config.py
-│   │   ├── main copy 2.py
-│   │   ├── main copy 3.py
-│   │   ├── main copy.py
 │   │   ├── main.py
-│   │   ├── models copy.py
+│   │   ├── metrics
 │   │   ├── models.py
-│   │   ├── ocr_worker copy.py
 │   │   ├── ocr_worker.py
 │   │   ├── pii_masker.py
 │   │   ├── rabbitmq.py
 │   │   ├── routes
-│   │   ├── schemas copy.py
 │   │   ├── schemas.py
 │   │   └── seed_data
 │   └── requirements.txt
+├── docker-compose copy.yml
 ├── docker-compose.yml
 ├── frontend
 │   ├── Dockerfile.dev
 │   ├── Dockerfile.prod
 │   ├── components
-│   │   ├── BucketMappingRow copy.js
 │   │   ├── BucketMappingRow.js
-│   │   ├── DocumentCard copy 2.js
-│   │   ├── DocumentCard copy.js
 │   │   ├── DocumentCard.js
-│   │   ├── Layout copy 2.js
 │   │   ├── Layout copy.js
-│   │   └── Layout.js
+│   │   ├── Layout.js
+│   │   └── hierarchy
+│   ├── metrics
+│   │   ├── Dashboard.js
+│   │   ├── hooks.js
+│   │   └── widgets
 │   ├── next.config.js
 │   ├── node_modules
 │   │   ├── @alloc
@@ -205,14 +204,12 @@
 │   ├── package.json
 │   ├── pages
 │   │   ├── _app.js
-│   │   ├── configuration copy.js
+│   │   ├── configuration
 │   │   ├── configuration.js
 │   │   ├── document
-│   │   ├── documents copy.js
 │   │   ├── documents.js
-│   │   ├── index copy.js
 │   │   ├── index.js
-│   │   └── metrics.js
+│   │   └── metrics
 │   ├── postcss.config.js
 │   ├── styles
 │   │   └── globals.css
@@ -250,4 +247,4 @@
     │   └── python3.10
     └── pyvenv.cfg
 
-170 directories, 81 files
+176 directories, 72 files

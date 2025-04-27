@@ -247,7 +247,7 @@ export default function Configuration() {
   useEffect(() => {
     async function fetchHierarchy() {
       try {
-        const res = await fetch("http://localhost:8000/lookup");
+        const res = await fetch("http://localhost:8000/lookup/doc-hierarchy");
         if (!res.ok) throw new Error("Failed to fetch hierarchy");
         const raw = await res.json();
         const transformed = Object.entries(raw).map(([dept, cats]) => ({

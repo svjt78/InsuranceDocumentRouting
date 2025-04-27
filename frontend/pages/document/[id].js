@@ -32,7 +32,7 @@ export default function DocumentDetail() {
 
   /* ─────────── load hierarchy ────────── */
   useEffect(() => {
-    fetch(`${API_BASE}/lookup`)
+    fetch(`${API_BASE}/lookup/doc-hierarchy`)
       .then(r => r.json())
       .then(raw => {
         const transformed = Object.entries(raw).map(([dept, cats]) => ({
