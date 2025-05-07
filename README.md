@@ -16,9 +16,11 @@
 ## Value prop and Features
 
 1. Industry Problem Addressed
+
 The insurance industry faces significant challenges in managing the high volume and diverse formats of incoming documents and correspondence. Traditional manual processes for document handling, analysis, classification, and routing are time-consuming, prone to human error, and limit scalability, especially during peak periods like those following natural disasters. Furthermore, extracting key information, summarizing content, identifying action items, and ensuring the secure handling of sensitive personal information (PII) within these documents adds complexity and cost. These inefficiencies can lead to delays in processing, increased operational costs, and potential compliance risks.
 
 2. Solutions Offered
+
 Our AI-based insurance document routing application provides a comprehensive, automated solution to address these problems. Key features and components include:
 
     •	Automated Document Ingestion & Processing: The application automatically retrieves incoming documents (PDFs, images, scanned documents, Word files, emails) via a notification service. It processes documents using OCR (specifically Tesseract + OpenCV, with preprocessing for poor quality images) to extract text and metadata.
@@ -38,7 +40,9 @@ Our AI-based insurance document routing application provides a comprehensive, au
     •	Modular Architecture: The solution is designed as a microservice architecture using Python (FastAPI) and containerization (Docker Compose for initial deployment, Kubernetes for scaling). This ensures flexibility, scalability, and ease of maintenance.
 
 3. Quantitative Benefit for Insurers
+
 Implementing this solution offers several quantitative benefits:
+
     •	Increased Processing Speed: Automating ingestion, OCR, classification, and routing allows for significant reduction in document processing time compared to manual methods,     supporting configurable real-time or near-real-time workflows. The ability to handle 5000 documents/day and factor in peak volumes ensures high throughput.
 
     •	Improved Operational Efficiency: Automated routing reduces the manual effort required to sort and deliver documents to the correct departments, freeing up staff for higher-value tasks. Features like bulk overrides further enhance efficiency for human review.
@@ -52,6 +56,7 @@ Implementing this solution offers several quantitative benefits:
 
 
 4. Architecture is designed with future-proofing in mind using open-source technology stack:
+
     1.	Microservices Architecture and Containerization: The solution is based on a containerized microservices design. This modular approach allows components (like the ingestion service, OCR worker (Tesseract), LLM classification service, database, and dashboard) to be developed, deployed, and scaled independently. Using Docker/Kubernetes for containerization facilitates migration between on-premises and cloud environments and supports scaling out workloads. Docker Compose is used for initial development, with a plan to move to Kubernetes for scalable production environments.
     
     2.	Environment Agnosticism: The architecture aims to be adaptable to both on-premises and cloud environments (AWS, Azure, Google Cloud). This is supported by the containerized design and the use of S3-compatible storage (MinIO initially), which allows for a smooth transition to cloud storage services like AWS S3. The potential future use of Infrastructure as Code tools like Terraform was also considered for managing resources in different environments.
@@ -59,6 +64,7 @@ Implementing this solution offers several quantitative benefits:
     3.	Scalability and Performance: The design incorporates a queue-based system (RabbitMQ) to handle document processing asynchronously, which helps manage high volumes and potential peaks after events like natural disasters. The microservices design inherently supports scaling specific services that experience higher load. While auto-scaling wasn't required initially, the architecture can accommodate it for components like OCR, classification, and summarization workloads. The ability to switch between real-time and near-real-time (batch) ingestion modes via configuration provides flexibility in processing speed and resource usage.
     
     4.	Flexible AI/ML Pipeline:
+       
         o	The plan starts with prompt engineering (zero/few-shot learning) using the OpenAI API to get the system running quickly and collect user feedback.
 
       	o	User feedback captured through manual overrides is saved to build a labeled dataset for future model retraining or fine-tuning. Options for retraining cadence (scheduled or event-triggered) were discussed.
@@ -68,6 +74,7 @@ Implementing this solution offers several quantitative benefits:
       	o	The architecture is flexible enough to potentially transition to different LLMs or hybrid approaches (like embedding + ML classifiers) as needed.
     
     5.	Extensibility for Future Features:
+       
         o	The architecture is designed to facilitate adding new functionalities later, such as automated claim settlement suggestions, fraud detection, or other insurance use cases. Tagging suspicious documents was considered for a future fraud pipeline.
 
       	o	Multi-language support is planned as a future enhancement, with the architecture designed to easily integrate language detection, translation, or multi-lingual NLP models. Specialized OCR engines often offer multi-language support.
@@ -75,6 +82,7 @@ Implementing this solution offers several quantitative benefits:
       	o	The email notification functionality is planned as a separate, isolated capability to minimize impact on existing modules, using a modern email service (Resend) and background tasks for non-blocking operation.
         
     6.	Adaptable User Interface: The dashboard is built using Next.js with React and TailwindCSS, which are modern frameworks known for building responsive and performant single-page applications that can scale in complexity.
+       
         o	The UI is explicitly designed to be fully responsive using TailwindCSS utilities, adapting to different screen sizes.
 
       	o	The inclusion of a configuration area in the dashboard allows administrators to dynamically manage settings like organizational hierarchy, MinIO bucket mappings, email notification settings, and ingestion mode, with changes stored in the database. This allows administrators to adapt the system to evolving business needs without developer intervention.
