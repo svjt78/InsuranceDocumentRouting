@@ -13,12 +13,13 @@
 ## Configuration ......................................................................................................... 6
 ## Contributing and Future Enhancements .................................................................. 7
 
+## Features
+
 This project is an AI-powered application designed to manage insurance documents. It
 automates the processing of uploaded documents, including classification,
 summarization, and action item recommendation, and provides a dashboard for
 oversight and manual correction.
 
-## Features
 * **Document Upload:** Upload insurance documents either via a dedicated API
 endpoint or through system integrations.
 * **Automated Processing:** Documents undergo Optical Character Recognition
