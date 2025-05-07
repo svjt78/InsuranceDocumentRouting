@@ -21,21 +21,21 @@ The insurance industry faces significant challenges in managing the high volume 
 2. Solutions Offered
 Our AI-based insurance document routing application provides a comprehensive, automated solution to address these problems. Key features and components include:
 
-•	Automated Document Ingestion & Processing: The application automatically retrieves incoming documents (PDFs, images, scanned documents, Word files, emails) via a notification service. It processes documents using OCR (specifically Tesseract + OpenCV, with preprocessing for poor quality images) to extract text and metadata.
-
-•	Intelligent Classification & Routing: Leveraging a Large Language Model (LLM), the system performs hierarchical classification, identifying the correct Department, Category, and Subcategory for each document based on pre-defined rules and a lookup table. Based on this classification, documents are automatically routed to the appropriate MinIO buckets configured for specific department/category/subcategory combinations.
-
-•	AI-Generated Summaries & Action Items: The LLM also generates concise bullet-point summaries of the document's key content and provides a checklist of recommended action items for recipients. PII is masked in these outputs.
-
-•	Human-in-the-Loop Dashboard: A user-friendly dashboard (built with React) provides a central control panel. It displays a real-time document queue, allows users (Document Management Specialists) to view document details (extracted text, classification, summary, action items), and offers the capability to manually override AI classifications and trigger re-processing. The dashboard also supports bulk actions for overrides/reclassification.
-
-•	Configuration Capabilities: The dashboard includes screens for dynamically managing organizational hierarchy (departments, categories, subcategories), configuring MinIO bucket mappings, and setting email notification recipients based on classification.
-
-•	Email Notifications: Configured email addresses receive automated notifications containing document details (classification, extracted text, summary, action items) and a link to the document in its destination bucket after successful processing. Manual overrides also trigger notifications with updated information.
-
-•	Metrics and Monitoring: The dashboard tracks key performance indicators such as average processing time, classification accuracy, summary usage, and documents requiring human re-routes, providing visibility into system performance. Audit logs are maintained for document routing and summaries.
-
-•	Modular Architecture: The solution is designed as a microservice architecture using Python (FastAPI) and containerization (Docker Compose for initial deployment, Kubernetes for scaling). This ensures flexibility, scalability, and ease of maintenance.
+    •	Automated Document Ingestion & Processing: The application automatically retrieves incoming documents (PDFs, images, scanned documents, Word files, emails) via a notification service. It processes documents using OCR (specifically Tesseract + OpenCV, with preprocessing for poor quality images) to extract text and metadata.
+    
+    •	Intelligent Classification & Routing: Leveraging a Large Language Model (LLM), the system performs hierarchical classification, identifying the correct Department, Category, and Subcategory for each document based on pre-defined rules and a lookup table. Based on this classification, documents are automatically routed to the appropriate MinIO buckets configured for specific department/category/subcategory combinations.
+    
+    •	AI-Generated Summaries & Action Items: The LLM also generates concise bullet-point summaries of the document's key content and provides a checklist of recommended action items for recipients. PII is masked in these outputs.
+    
+    •	Human-in-the-Loop Dashboard: A user-friendly dashboard (built with React) provides a central control panel. It displays a real-time document queue, allows users (Document Management Specialists) to view document details (extracted text, classification, summary, action items), and offers the capability to manually override AI classifications and trigger re-processing. The dashboard also supports bulk actions for overrides/reclassification.
+    
+    •	Configuration Capabilities: The dashboard includes screens for dynamically managing organizational hierarchy (departments, categories, subcategories), configuring MinIO bucket mappings, and setting email notification recipients based on classification.
+    
+    •	Email Notifications: Configured email addresses receive automated notifications containing document details (classification, extracted text, summary, action items) and a link to the document in its destination bucket after successful processing. Manual overrides also trigger notifications with updated information.
+    
+    •	Metrics and Monitoring: The dashboard tracks key performance indicators such as average processing time, classification accuracy, summary usage, and documents requiring human re-routes, providing visibility into system performance. Audit logs are maintained for document routing and summaries.
+    
+    •	Modular Architecture: The solution is designed as a microservice architecture using Python (FastAPI) and containerization (Docker Compose for initial deployment, Kubernetes for scaling). This ensures flexibility, scalability, and ease of maintenance.
 
 3. Quantitative Benefit for Insurers
 Implementing this solution offers several quantitative benefits:
