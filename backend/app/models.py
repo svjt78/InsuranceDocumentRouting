@@ -20,6 +20,8 @@ class Document(Base):
     error_message      = Column(Text,   nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    email_error = Column(Text, nullable=True)
+
 
 class BucketMapping(Base):
     __tablename__ = 'bucket_mappings'

@@ -9,7 +9,7 @@ export default function OrgChart() {
   const containerRef = useRef(null);
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
 
-  // 1. Load the hierarchy from the backend once
+  // 1. Load the hierarchy once
   useEffect(() => {
     fetch(`${API_BASE}/lookup/doc-hierarchy`)
       .then(res => {
@@ -19,7 +19,7 @@ export default function OrgChart() {
       .then(raw => {
         setTreeData([
           {
-            name: 'Document Hierarchy',
+            name: 'Organizational Hierarchy',
             children: Object.entries(raw).map(([dept, cats]) => ({
               name: dept,
               children: Object.entries(cats).map(([cat, subs]) => ({
@@ -33,7 +33,7 @@ export default function OrgChart() {
       .catch(err => console.error('Hierarchy load failed:', err));
   }, [API_BASE]);
 
-  // 2. Measure container size and update on resize
+  // 2. Measure container size
   useEffect(() => {
     const measure = () => {
       if (containerRef.current) {
@@ -46,7 +46,7 @@ export default function OrgChart() {
     return () => window.removeEventListener('resize', measure);
   }, []);
 
-  // 3. While loading data or before measurement, just render the dark container
+  // 3. Loading state
   if (!treeData || dims.width === 0) {
     return (
       <div
@@ -62,7 +62,7 @@ export default function OrgChart() {
     );
   }
 
-  // 4. Render the tree with CSS overrides for both text and connectors
+  // 4. Render the tree
   return (
     <div
       ref={containerRef}
@@ -72,18 +72,24 @@ export default function OrgChart() {
         height: '600px',
         backgroundColor: '#0c0d15',
         position: 'relative',
+        overflow: 'auto',
       }}
     >
+      {/* Global CSS overrides for white text & white links */}
       <style jsx global>{`
-        /* Make all node labels white */
         .rd3t-container svg text {
           fill: #fff !important;
           stroke: none !important;
         }
-        /* Make all connector lines white */
         .rd3t-container svg path.rd3t-link {
           stroke: #fff !important;
           stroke-width: 2px !important;
+        }
+        .rd3t-container {
+          cursor: grab;
+        }
+        .rd3t-container:active {
+          cursor: grabbing;
         }
       `}</style>
 
@@ -94,17 +100,36 @@ export default function OrgChart() {
         pathFunc="elbow"
         collapsible
         zoomable
-        scaleExtent={{ min: 0.5, max: 2 }}
         separation={{ siblings: 1.5, nonSiblings: 2.5 }}
+        scaleExtent={{ min: 0.5, max: 2 }}
         linkSvgProps={{ stroke: '#fff', strokeWidth: 2 }}
-        nodeSvgShape={{
-          shape: 'circle',
-          shapeProps: {
-            r: 10,
-            fill: '#1e1e2f',
-            stroke: '#555',
-            strokeWidth: 1,
-          },
+        renderCustomNodeElement={({ nodeDatum, toggleNode }) => {
+          const name = nodeDatum.name;
+          // dynamic width based on label length
+          const boxWidth = Math.max(name.length * 8, 100);
+          return (
+            <g onClick={toggleNode} style={{ cursor: 'pointer' }}>
+              <rect
+                x={-boxWidth / 2}
+                y={-15}
+                width={boxWidth}
+                height={30}
+                rx={8}
+                ry={8}
+                fill="#1e1e2f"
+                stroke="#fff"
+                strokeWidth={1}
+              />
+              <text
+                x={0}
+                y={5}
+                textAnchor="middle"
+                style={{ fontSize: '12px', fontWeight: 600 }}
+              >
+                {name}
+              </text>
+            </g>
+          );
         }}
       />
     </div>
