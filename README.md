@@ -1,7 +1,14 @@
 ```markdown
 # 🏢 Insurance Document Management (InsDocRouting)
 
-An intelligent, AI-driven document management and routing system for insurance operations. This application automates the ingestion, classification, and routing of unstructured documents—whether uploaded manually, sent via email, or dropped into AWS S3 buckets. It extracts key information from document contents and email metadata using OCR and LLMs, classifies documents into a configurable hierarchy, and routes them to destination buckets. Real-time dashboards, admin tools, and override capabilities enable transparency and operational control.
+An intelligent, AI-driven document management and routing system for insurance operations.
+This application automates the ingestion, classification,
+and routing of unstructured documents—whether uploaded manually,
+sent via email, or dropped into AWS S3 buckets.
+It extracts key information from document contents and email metadata using OCR and LLMs,
+classifies documents into a configurable hierarchy,
+and routes them to destination buckets. Real-time dashboards, admin tools,
+and override capabilities enable transparency and operational control.
 
 ---
 
