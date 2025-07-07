@@ -4,18 +4,24 @@ import { useRouter } from "next/router";
 import Layout from "../components/Layout";
 import DocumentCard from "../components/DocumentCard";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export default function Documents() {
   const router = useRouter();
-
   const [documents, setDocuments] = useState([]);
-  const [selected, setSelected]     = useState([]);
+  const [selected, setSelected] = useState([]);
 
   /* ---------------------- load list ----------------------- */
   const loadDocuments = async () => {
-    const res  = await fetch("http://localhost:8000/documents");
-    const data = await res.json();
-    setDocuments(data);
-    setSelected([]); // clear selection on refresh
+    try {
+      const res = await fetch(`${API_BASE}/documents`);
+      if (!res.ok) throw new Error("Failed to fetch documents");
+      const data = await res.json();
+      setDocuments(data);
+      setSelected([]); // clear selection on refresh
+    } catch (err) {
+      console.error("Error loading documents:", err);
+    }
   };
 
   useEffect(() => {
@@ -25,7 +31,7 @@ export default function Documents() {
   /* ------------------------- delete ------------------------------- */
   const handleDelete = async (id) => {
     if (!confirm("Delete this document record?")) return;
-    await fetch(`http://localhost:8000/document/${id}`, { method: "DELETE" });
+    await fetch(`${API_BASE}/document/${id}`, { method: "DELETE" });
     setDocuments(prev => prev.filter(d => d.id !== id));
     setSelected(prev => prev.filter(dId => dId !== id));
   };
@@ -34,7 +40,9 @@ export default function Documents() {
   const handleBulkDelete = async () => {
     if (!confirm(`Delete ${selected.length} selected documents?`)) return;
     await Promise.all(
-      selected.map(id => fetch(`http://localhost:8000/document/${id}`, { method: "DELETE" }))
+      selected.map(id =>
+        fetch(`${API_BASE}/document/${id}`, { method: "DELETE" })
+      )
     );
     loadDocuments();
   };
@@ -85,7 +93,7 @@ export default function Documents() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {documents.map((doc) => (
               <div key={doc.id} className="relative">
-                {/* selection checkbox */}
+                {/* selection checkbox moved inside card */}
                 <input
                   type="checkbox"
                   className="absolute top-2 left-2 z-10"
@@ -93,6 +101,8 @@ export default function Documents() {
                   onClick={(e) => e.stopPropagation()}
                   onChange={() => toggleSelect(doc.id)}
                 />
+
+                {/* Document card with metadata, actions, and destination */}
                 <DocumentCard
                   document={doc}
                   onDelete={handleDelete}

@@ -133,6 +133,10 @@ export default function DocumentDetail() {
       destination_bucket: updated.destination_bucket,
       destination_key:    updated.destination_key,
       error_message:      updated.error_message,
+      account_number:     updated.account_number,
+      policyholder_name:  updated.policyholder_name,
+      policy_number:      updated.policy_number,
+      claim_number:       updated.claim_number,
     }));
 
     setOverride({
@@ -190,16 +194,21 @@ export default function DocumentDetail() {
   return (
     <Layout title={`Document ${documentData.id} Details`}>
       <div className="container mx-auto p-4 space-y-6">
-
         {/* info header */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Document Details</h1>
-          <div>
+          <div className="flex space-x-2">
             <button
               onClick={handleRefresh}
-              className="px-3 py-1 mr-2 bg-blue-600 rounded hover:bg-blue-700"
+              className="px-3 py-1 bg-blue-600 rounded hover:bg-blue-700"
             >
               Refresh
+            </button>
+            <button
+              onClick={() => router.push(`/viewer/${id}`)}
+              className="px-3 py-1 bg-green-600 rounded hover:bg-green-700"
+            >
+              View PDF
             </button>
             <button
               onClick={handleDelete}
@@ -211,11 +220,15 @@ export default function DocumentDetail() {
         </div>
 
         {/* metadata */}
-        <div>
+        <div className="space-y-1">
           <p><strong>Filename:</strong> {documentData.filename}</p>
           <p><strong>Status:</strong> {documentData.status}</p>
-          <p><strong>Created:</strong> {new Date(documentData.created_at).toLocaleString()}</p>
-          <p><strong>Updated:</strong> {documentData.updated_at ? new Date(documentData.updated_at).toLocaleString() : "—"}</p>
+          <p><strong>Account #:</strong> {documentData.account_number || "XXXX"}</p>
+          <p><strong>Policyholder:</strong> {documentData.policyholder_name || "XXXX"}</p>
+          <p><strong>Policy #:</strong>  {documentData.policy_number || "XXXX"}</p>
+          <p><strong>Claim #:</strong>   {documentData.claim_number || "XXXX"}</p>
+          <p><strong>Created:</strong>  {new Date(documentData.created_at).toLocaleString()}</p>
+          <p><strong>Updated:</strong>  {documentData.updated_at ? new Date(documentData.updated_at).toLocaleString() : "—"}</p>
           <p><strong>Destination Bucket:</strong> {documentData.destination_bucket || "N/A"}</p>
           {documentData.error_message && (
             <p className="text-red-400"><strong>Error:</strong> {documentData.error_message}</p>
@@ -291,7 +304,7 @@ export default function DocumentDetail() {
 
           {/* Subcategory */}
           <div>
-            <label className="block mb-1">Sub‑category</label>
+            <label className="block mb-1">Sub-category</label>
             <select
               name="subcategory"
               value={override.subcategory}

@@ -1,76 +1,120 @@
-# backend/app/destination_service.py
-
+import os
 import logging
+import re
+from typing import Optional, Tuple
 from botocore.exceptions import ClientError
-from . import models
+
+from .config import AWS_REGION, AWS_S3_BUCKET
+from .models import BucketMapping
 
 logger = logging.getLogger(__name__)
 
-def process_document_destination(document, db, s3_client, source_bucket):
+
+def _sanitize_segment(name: str) -> str:
     """
-    Look up the destination bucket for a document and copy the file from the source bucket.
+    Convert an arbitrary name into a safe S3 segment:
+      - lowercase
+      - letters, numbers, hyphens only
+      - no leading/trailing hyphens
+      - 3–63 chars
+      - spaces/underscores → hyphens
+    """
+    seg = (name or "").strip().lower()
+    seg = re.sub(r"[_\s]+", "-", seg)
+    seg = re.sub(r"[^a-z0-9-]", "", seg)
+    seg = seg.strip('-')
+    if len(seg) < 3:
+        seg = seg.ljust(3, '0')
+    if len(seg) > 63:
+        seg = seg[:63]
+    return seg
 
-    Parameters:
-        document: The Document model instance.
-        db: SQLAlchemy DB session.
-        s3_client: boto3 S3 client.
-        source_bucket: The source bucket name (e.g. "documents").
 
-    Returns:
-        A tuple (success, error_message, destination_bucket, destination_key).
-        - success: True if destination lookup and file copy succeed.
-        - error_message: Contains an error detail if processing fails.
-        - destination_bucket: Name of the destination bucket.
-        - destination_key: The key for the copied file in the destination bucket.
+def process_document_destination(
+    document,
+    db,
+    s3_client,
+    source_bucket: str
+) -> Tuple[bool, Optional[str], Optional[str], Optional[str]]:
+    """
+    Copy the document into the root S3 bucket under the "output" prefix,
+    using a hierarchical key based on account, policy, department, category,
+    and subcategory (suffix) folders.
+
+    Returns: (success, error_msg, destination_folder, destination_key)
     """
     try:
-        # Retrieve the bucket mapping that matches the document's classification.
-        mapping = db.query(models.BucketMapping).filter_by(
-            department=document.department,
-            category=document.category,
-            subcategory=document.subcategory
-        ).first()
-
-        if not mapping:
-            error = "No matching destination mapping found."
-            return (False, error, None, None)
-
-        destination_bucket = mapping.bucket_name
-
-        # Ensure the destination bucket is different from the source bucket.
-        if destination_bucket == source_bucket:
-            error = "Destination bucket cannot be the source bucket."
-            return (False, error, None, None)
-
-        # Check if the destination bucket exists; if not, create it.
-        try:
-            s3_client.head_bucket(Bucket=destination_bucket)
-        except ClientError as e:
-            error_code = e.response["Error"].get("Code", "")
-            if error_code in ("404", "NoSuchBucket", "AccessDenied"):
-                s3_client.create_bucket(Bucket=destination_bucket)
-                logger.info("Created destination bucket: %s", destination_bucket)
+        # 1. Determine logical suffix from mapping or fallback to subcategory
+        mapping = (
+            db.query(BucketMapping)
+              .filter_by(
+                  department=document.department,
+                  category=document.category,
+                  subcategory=document.subcategory
+              )
+              .first()
+        )
+        if mapping and mapping.bucket_name:
+            suffix = _sanitize_segment(mapping.bucket_name)
+        else:
+            suffix = _sanitize_segment(document.subcategory or "")
+            # persist suffix-only mapping
+            if not mapping:
+                mapping = BucketMapping(
+                    department=document.department,
+                    category=document.category,
+                    subcategory=document.subcategory,
+                    bucket_name=suffix
+                )
+                db.add(mapping)
             else:
-                logger.exception("Error checking destination bucket: %s", e)
-                return (False, f"Error checking destination bucket: {e}", None, None)
+                mapping.bucket_name = suffix
+            db.commit()
+            db.refresh(mapping)
 
-        # Determine the destination file key; for simplicity, reuse the same key.
-        destination_key = document.s3_key
+        # Always use the root bucket
+        dest_bucket = AWS_S3_BUCKET
 
-        # Copy the file from the source bucket to the destination bucket.
+        # 2. Build object key path inside 'output/'
+        segments = []
+        acct = getattr(document, 'account_number', None)
+        segments.append(_sanitize_segment(f"Account-{acct}")) if acct and acct != "XXXX" else segments.append('unknown-account')
+        pol = getattr(document, 'policy_number', None)
+        segments.append(_sanitize_segment(f"Policy-{pol}")) if pol and pol != "XXXX" else segments.append('unknown-policy')
+        if (document.department or '').lower() == 'claims':
+            claim = getattr(document, 'claim_number', None)
+            if claim and claim != "XXXX":
+                segments.append(_sanitize_segment(f"Claim-{claim}"))
+        segments.extend([
+            _sanitize_segment(document.department or ''),
+            _sanitize_segment(document.category or ''),
+            suffix
+        ])
+        filename = os.path.basename(document.s3_key)
+        # prefix with 'output'
+        destination_key = f"output/{'/'.join(segments)}/{filename}"
+
+        # 3. Copy object
         copy_source = {'Bucket': source_bucket, 'Key': document.s3_key}
-        try:
-            s3_client.copy_object(
-                CopySource=copy_source,
-                Bucket=destination_bucket,
-                Key=destination_key
-            )
-            logger.info("Copied document %s to destination bucket %s", document.id, destination_bucket)
-            return (True, None, destination_bucket, destination_key)
-        except ClientError as e:
-            logger.exception("File copy failed: %s", e)
-            return (False, f"File copy failed: {e}", None, None)
+        s3_client.copy_object(
+            Bucket=dest_bucket,
+            CopySource=copy_source,
+            Key=destination_key
+        )
+        logger.info(
+            "Copied doc %s from %s/%s to %s/%s",
+            document.id, source_bucket, document.s3_key,
+            dest_bucket, destination_key
+        )
 
+        # Return the suffix (final folder) for UI, and the full key
+        return True, None, suffix, destination_key
+
+    except ClientError as ce:
+        err = f"S3 error: {ce.response.get('Error', {}).get('Message', str(ce))}"
+        logger.exception(err)
+        return False, err, None, None
     except Exception as e:
-        logger.exception("Unexpected error during destination processing: %s", e)
-        return (False, f"Unexpected error: {e}", None, None)
+        err = f"Unexpected error: {e}"
+        logger.exception(err)
+        return False, err, None, None

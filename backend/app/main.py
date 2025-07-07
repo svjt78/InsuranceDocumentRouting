@@ -1,30 +1,60 @@
 # backend/app/main.py
 
+import os
+import uuid
+import json
+import logging
+
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Body
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import text
-import uuid
-import json
-import os
-import logging
-import traceback
 import boto3
 from botocore.exceptions import ClientError
+from sqlalchemy import text
 
 from .logging_config import setup_logging
 from . import models, database
-from .rabbitmq import publish_message
+from .models import Document1
 from .bucket_mappings import router as bucket_mappings_router
 from .email_settings import router as email_settings_router
 from .routes.doc_hierarchy import router as doc_hierarchy_router
 from .seed_data.seed_hierarchy import run_seed
 from .metrics.router import router as metrics_router
-from .destination_service import process_document_destination  # 🆕 import routing logic
+from .destination_service import process_document_destination
+from .config import (
+    AWS_REGION,
+    AWS_S3_BUCKET,
+    S3_INPUT_PREFIX,
+    OUTBOX_POLL_INTERVAL,
+    PRESIGNED_URL_EXPIRES_IN,
+)
 
 # ───────────────────────────────────────── setup ───────────────────────────────────────────
 setup_logging()
 logger = logging.getLogger("main")
+
+# ───────────────────────────────────────── AWS S3 ────────────────────────────────────────────
+if not AWS_S3_BUCKET:
+    logger.error("Missing AWS_S3_BUCKET environment variable")
+    raise RuntimeError("AWS_S3_BUCKET must be set")
+
+s3_client = boto3.client(
+    "s3",
+    region_name=AWS_REGION,
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+)
+
+# simple in-memory toggle
+_ingestion_mode = os.getenv("INGESTION_MODE", "realtime")
+
+# ───────────────────────────────────────── DB dep ───────────────────────────────────────────
+def get_db():
+    db = database.SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 app = FastAPI(
     title="Insurance Document API",
@@ -42,26 +72,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ───────────────────────────────────────── MinIO ────────────────────────────────────────────
-s3_client = boto3.client(
-    "s3",
-    endpoint_url=os.getenv("MINIO_ENDPOINT"),
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-)
-BUCKET = os.getenv("MINIO_BUCKET", "documents")
-
-# simple in-memory toggle
-_ingestion_mode = os.getenv("INGESTION_MODE", "realtime")
-
-# ───────────────────────────────────────── DB dep ───────────────────────────────────────────
-def get_db():
-    db = database.SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
 # ───────────────────────────────────────── startup ─────────────────────────────────────────
 @app.on_event("startup")
 def startup() -> None:
@@ -76,18 +86,13 @@ def startup() -> None:
         else:
             logger.info("doc_hierarchy already populated (%s rows)", cnt)
 
-    # Ensure MinIO bucket exists
+    # Verify AWS S3 bucket exists
     try:
-        s3_client.head_bucket(Bucket=BUCKET)
-        logger.info("MinIO bucket '%s' exists.", BUCKET)
+        s3_client.head_bucket(Bucket=AWS_S3_BUCKET)
+        logger.info("S3 bucket '%s' accessible.", AWS_S3_BUCKET)
     except ClientError as e:
-        code = e.response["Error"].get("Code", "")
-        if code in ("404", "403", "NoSuchBucket", "AccessDenied"):
-            s3_client.create_bucket(Bucket=BUCKET)
-            logger.info("MinIO bucket '%s' created.", BUCKET)
-        else:
-            logger.exception("Error checking/creating MinIO bucket: %s", e)
-            raise
+        logger.exception("Unable to access S3 bucket '%s': %s", AWS_S3_BUCKET, e)
+        raise RuntimeError(f"Cannot access S3 bucket: {AWS_S3_BUCKET}")
 
 # ───────────────────────────────────────── API – upload ──────────────────────────────────────
 @app.post("/upload")
@@ -97,8 +102,9 @@ async def upload_document(
 ):
     logger.info("Received upload: %s", file.filename)
     file_id = str(uuid.uuid4())
-    s3_key = f"{file_id}_{file.filename}"
-    tmp_path = f"/tmp/{s3_key}"
+    key_name = f"{file_id}_{file.filename}"
+    s3_key = f"{S3_INPUT_PREFIX.rstrip('/')}/{key_name}"
+    tmp_path = f"/tmp/{key_name}"
 
     # local temp write
     content = await file.read()
@@ -109,16 +115,42 @@ async def upload_document(
         logger.exception("Local write failed: %s", e)
         raise HTTPException(status_code=500, detail="File write error")
 
-    # MinIO upload
+    # AWS S3 upload
     try:
-        s3_client.upload_file(tmp_path, BUCKET, s3_key)
+        s3_client.upload_file(tmp_path, AWS_S3_BUCKET, s3_key)
+        logger.info("Uploaded to S3: %s/%s", AWS_S3_BUCKET, s3_key)
     except Exception as e:
-        logger.exception("MinIO upload failed: %s", e)
-        raise HTTPException(status_code=500, detail="MinIO upload failed")
+        logger.exception("S3 upload failed: %s", e)
+        # Record failure
+        fail_db = database.SessionLocal()
+        try:
+            fail_doc = models.Document1(
+                filename=file.filename,
+                s3_key=s3_key,
+                status="Failed",
+                error_message=str(e),
+                account_number="XXXX",
+                policyholder_name="XXXX",
+                policy_number="XXXX",
+                claim_number="XXXX",
+            )
+            fail_db.add(fail_doc)
+            fail_db.commit()
+        finally:
+            fail_db.close()
+        raise HTTPException(status_code=500, detail="S3 upload failed")
 
-    # DB record
+    # DB record into Document1
     try:
-        doc = models.Document(filename=file.filename, s3_key=s3_key, status="Pending")
+        doc = models.Document1(
+            filename=file.filename,
+            s3_key=s3_key,
+            status="Pending",
+            account_number="XXXX",
+            policyholder_name="XXXX",
+            policy_number="XXXX",
+            claim_number="XXXX",
+        )
         db.add(doc)
         db.commit()
         db.refresh(doc)
@@ -127,23 +159,41 @@ async def upload_document(
         logger.exception("DB insert failed: %s", e)
         raise HTTPException(status_code=500, detail="Database insert failed")
 
-    # RabbitMQ notify
+    # Enqueue in outbox
+    out_db = database.SessionLocal()
     try:
-        publish_message("document_queue", json.dumps({"doc_id": doc.id, "s3_key": s3_key}))
+        out = models.MessageOutbox(
+            exchange="",
+            routing_key="document_queue",
+            payload={"doc_id": doc.id, "s3_key": s3_key},
+        )
+        out_db.add(out)
+        out_db.commit()
+        logger.info("Enqueued outbox id=%s", out.id)
     except Exception as e:
-        logger.exception("RabbitMQ publish failed: %s", e)
-        raise HTTPException(status_code=500, detail="RabbitMQ publish failed")
+        out_db.rollback()
+        logger.exception("Outbox write failed: %s", e)
+    finally:
+        out_db.close()
 
     return {"message": "Uploaded successfully", "document_id": doc.id}
 
-# ───────────────────────────────────────── API – queries ─────────────────────────────────────
+# ───────────────────────────────────────── API – list & detail ─────────────────────────────────
 @app.get("/documents")
 def get_documents(db: Session = Depends(get_db)):
-    docs = db.query(models.Document).all()
+    docs = (
+        db.query(Document1)
+          .order_by(Document1.updated_at.desc(), Document1.created_at.desc())
+          .all()
+    )
     return [
         {
             "id": d.id,
             "filename": d.filename,
+            "account_number": d.account_number,
+            "policyholder_name": d.policyholder_name,
+            "policy_number": d.policy_number,
+            "claim_number": d.claim_number,
             "department": d.department,
             "category": d.category,
             "subcategory": d.subcategory,
@@ -154,13 +204,31 @@ def get_documents(db: Session = Depends(get_db)):
             "created_at": d.created_at,
             "destination_bucket": d.destination_bucket,
             "destination_key": d.destination_key,
+            "error_message": d.error_message,
+            "email_error": d.email_error,
         }
         for d in docs
     ]
 
+@app.get("/documents/{doc_id}/download")
+def get_download_url(doc_id: int, db: Session = Depends(get_db)):
+    d = db.query(models.Document1).filter(models.Document1.id == doc_id).first()
+    if not d or not d.destination_key:
+        raise HTTPException(status_code=404, detail="Document not found or not yet routed")
+    try:
+        url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": AWS_S3_BUCKET, "Key": d.destination_key},
+            ExpiresIn=PRESIGNED_URL_EXPIRES_IN,
+        )
+    except ClientError as e:
+        logger.exception("Error generating presigned URL: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to generate download URL")
+    return {"url": url}
+
 @app.get("/document/{doc_id}")
 def get_document(doc_id: int, db: Session = Depends(get_db)):
-    d = db.query(models.Document).filter(models.Document.id == doc_id).first()
+    d = db.query(models.Document1).filter(models.Document1.id == doc_id).first()
     if not d:
         logger.warning("Document not found: %s", doc_id)
         raise HTTPException(status_code=404, detail="Document not found")
@@ -169,6 +237,10 @@ def get_document(doc_id: int, db: Session = Depends(get_db)):
         "filename": d.filename,
         "s3_key": d.s3_key,
         "extracted_text": d.extracted_text,
+        "account_number": d.account_number,
+        "policyholder_name": d.policyholder_name,
+        "policy_number": d.policy_number,
+        "claim_number": d.claim_number,
         "department": d.department,
         "category": d.category,
         "subcategory": d.subcategory,
@@ -179,24 +251,23 @@ def get_document(doc_id: int, db: Session = Depends(get_db)):
         "created_at": d.created_at,
         "destination_bucket": d.destination_bucket,
         "destination_key": d.destination_key,
+        "error_message": d.error_message,
+        "email_error": d.email_error,
     }
 
-# ─────────────────────────────────────── API – override (now synchronous) ───────────────────────────────────
+# ─────────────────────────────────────── API – override (synchronous) ─────────────────────────
 @app.post("/document/{doc_id}/override")
 def override_document(
     doc_id: int,
     override: dict = Body(...),
     db: Session = Depends(get_db),
 ):
-    logger.info(f"=== OVERRIDE START doc_id={doc_id} ===")
-    from .models import Document
-
-    d = db.query(Document).get(doc_id)
+    logger.info("=== OVERRIDE START doc_id=%s ===", doc_id)
+    d = db.query(models.Document1).get(doc_id)
     if not d:
-        logger.warning(f"Document {doc_id} not found for override")
+        logger.warning("Document %s not found for override", doc_id)
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # Track which fields actually change
     orig = {
         "department": d.department,
         "category": d.category,
@@ -205,60 +276,62 @@ def override_document(
         "action_items": d.action_items,
     }
     classification_changed = False
-    for field in ("department", "category", "subcategory", "summary", "action_items"):
+    for field in orig:
         if override.get(field) is not None and override[field] != getattr(d, field):
             setattr(d, field, override[field])
             classification_changed = True
-            logger.info(f"Overriding {field}: {orig[field]!r} -> {override[field]!r}")
+            logger.info(
+                "Overriding %s: %r -> %r",
+                field, orig[field], override[field]
+            )
 
     if not classification_changed:
         logger.info("No fields changed—no commit")
         return {
+            **orig,
             "id": d.id,
-            "department": d.department,
-            "category": d.category,
-            "subcategory": d.subcategory,
-            "summary": d.summary,
-            "action_items": d.action_items,
             "status": d.status,
             "destination_bucket": d.destination_bucket,
             "destination_key": d.destination_key,
         }
 
-    # Commit override changes
     d.status = "Processed with Override"
     try:
         db.commit()
         db.refresh(d)
     except Exception as e:
         db.rollback()
-        logger.exception("Override commit failed")
+        logger.exception("Override commit failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Override commit error: {e}")
 
-    # Immediately re-route based on new classification
-    logger.info(f"Running synchronous reroute for doc_id={doc_id}")
+    logger.info("Running synchronous reroute for doc_id=%s", doc_id)
     success, error_msg, new_bucket, new_key = process_document_destination(
-        d, db, s3_client, BUCKET
+        d, db, s3_client, AWS_S3_BUCKET
     )
     d.destination_bucket = new_bucket
-    d.destination_key    = new_key
-    d.error_message      = error_msg
-    d.status             = (
-        "Processed with Override" if success
+    d.destination_key = new_key
+    d.error_message = error_msg
+    d.status = (
+        "Processed with Override"
+        if success
         else ("No Destination" if error_msg and error_msg.startswith("No matching") else "Failed")
     )
     try:
         db.commit()
         db.refresh(d)
-        logger.info(f"Inline reroute completed: bucket={new_bucket} key={new_key}")
+        logger.info("Inline reroute completed: bucket=%s key=%s", new_bucket, new_key)
     except Exception as e:
         db.rollback()
-        logger.exception("Reroute commit failed")
+        logger.exception("Reroute commit failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Reroute commit error: {e}")
 
-    logger.info(f"=== OVERRIDE END doc_id={doc_id} ===")
+    logger.info("=== OVERRIDE END doc_id=%s ===", doc_id)
     return {
         "id": d.id,
+        "account_number": d.account_number,
+        "policyholder_name": d.policyholder_name,
+        "policy_number": d.policy_number,
+        "claim_number": d.claim_number,
         "department": d.department,
         "category": d.category,
         "subcategory": d.subcategory,
@@ -268,12 +341,13 @@ def override_document(
         "destination_bucket": d.destination_bucket,
         "destination_key": d.destination_key,
         "error_message": d.error_message,
+        "email_error": d.email_error,
     }
 
 # ────────────────────────────────────── soft-delete ─────────────────────────────────────────
 @app.delete("/document/{doc_id}", status_code=204)
 def delete_document(doc_id: int, db: Session = Depends(get_db)):
-    d = db.query(models.Document).filter(models.Document.id == doc_id).first()
+    d = db.query(models.Document1).filter(models.Document1.id == doc_id).first()
     if not d:
         raise HTTPException(status_code=404, detail="Document not found")
     db.delete(d)

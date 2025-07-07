@@ -1,3 +1,4 @@
+// frontend/pages/configuration.js
 import { useState, useEffect } from "react";
 import Layout from "../components/Layout";
 import { FaSave, FaTrashAlt } from "react-icons/fa";
@@ -6,31 +7,34 @@ import { FaSave, FaTrashAlt } from "react-icons/fa";
    Subcomponent: BucketMappingRow
 -------------------------------------------------------------------------- */
 function BucketMappingRow({ mapping, departmentData, onSave, onDelete, onUpdate }) {
-  // Initialize state using backend's key name "bucket_name"
   const [bucketName, setBucketName] = useState(mapping.bucket_name || "");
   const [department, setDepartment] = useState(mapping.department || "");
   const [category, setCategory] = useState(mapping.category || "");
   const [subcategory, setSubcategory] = useState(mapping.subcategory || "");
-  // validation state
   const [nameError, setNameError] = useState("");
 
-  // Derive available categories and subcategories based on selected department/category.
   const selectedDept = departmentData.find((d) => d.department === department);
   const categories = selectedDept ? selectedDept.categories : [];
   const selectedCat = categories.find((c) => c.category === category);
   const subcategories = selectedCat ? selectedCat.subcategories : [];
 
-  // inform parent of any field changes
+  // Propagate changes up
   useEffect(() => {
-    onUpdate({ ...mapping, bucket_name: bucketName, department, category, subcategory });
+    onUpdate({
+      ...mapping,
+      bucket_name: bucketName,
+      department,
+      category,
+      subcategory,
+    });
   }, [bucketName, department, category, subcategory]);
 
-  // bucket-name format check
+  // Validate bucket name
   useEffect(() => {
     const valid = /^[a-z0-9-]+$/.test(bucketName);
     setNameError(
       bucketName && !valid
-        ? "Bucket names may only contain lowercase letters, digits, and hyphens."
+        ? "S3 bucket names may only contain lowercase letters, digits, and hyphens."
         : ""
     );
   }, [bucketName]);
@@ -43,11 +47,9 @@ function BucketMappingRow({ mapping, departmentData, onSave, onDelete, onUpdate 
           className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1"
           value={bucketName}
           onChange={(e) => setBucketName(e.target.value)}
-          placeholder="Bucket Name"
+          placeholder="S3 Bucket Name"
         />
-        {nameError && (
-          <p className="text-red-400 text-sm mt-1">{nameError}</p>
-        )}
+        {nameError && <p className="text-red-400 text-sm mt-1">{nameError}</p>}
       </td>
       <td className="p-2">
         <select
@@ -60,9 +62,9 @@ function BucketMappingRow({ mapping, departmentData, onSave, onDelete, onUpdate 
           }}
         >
           <option value="">Select Department</option>
-          {departmentData.map((dept) => (
-            <option key={dept.department} value={dept.department}>
-              {dept.department}
+          {departmentData.map((d) => (
+            <option key={d.department} value={d.department}>
+              {d.department}
             </option>
           ))}
         </select>
@@ -78,9 +80,9 @@ function BucketMappingRow({ mapping, departmentData, onSave, onDelete, onUpdate 
           disabled={!department}
         >
           <option value="">Select Category</option>
-          {categories.map((cat) => (
-            <option key={cat.category} value={cat.category}>
-              {cat.category}
+          {categories.map((c) => (
+            <option key={c.category} value={c.category}>
+              {c.category}
             </option>
           ))}
         </select>
@@ -102,14 +104,14 @@ function BucketMappingRow({ mapping, departmentData, onSave, onDelete, onUpdate 
       </td>
       <td className="p-2 flex space-x-4">
         <FaSave
+          title="Save S3 mapping"
           className={`text-green-400 hover:text-green-600 cursor-pointer ${
             nameError ? "opacity-50 cursor-not-allowed" : ""
           }`}
-          onClick={() => {
-            if (!nameError) onSave(mapping.id);
-          }}
+          onClick={() => !nameError && onSave(mapping.id)}
         />
         <FaTrashAlt
+          title="Delete S3 mapping"
           className="text-red-400 hover:text-red-600 cursor-pointer"
           onClick={() => onDelete(mapping.id)}
         />
@@ -122,12 +124,10 @@ function BucketMappingRow({ mapping, departmentData, onSave, onDelete, onUpdate 
    Subcomponent: EmailSettingsRow
 -------------------------------------------------------------------------- */
 function EmailSettingsRow({ setting, departmentData, onSave, onDelete, onUpdate }) {
-  // Initialize state using backend key "email_addresses"
   const [department, setDepartment] = useState(setting.department || "");
   const [emailAddresses, setEmailAddresses] = useState(setting.email_addresses || "");
 
   useEffect(() => {
-    // Update using the expected key "email_addresses"
     onUpdate({ ...setting, department, email_addresses: emailAddresses });
   }, [department, emailAddresses]);
 
@@ -140,9 +140,9 @@ function EmailSettingsRow({ setting, departmentData, onSave, onDelete, onUpdate 
           onChange={(e) => setDepartment(e.target.value)}
         >
           <option value="">Select Department</option>
-          {departmentData.map((dept) => (
-            <option key={dept.department} value={dept.department}>
-              {dept.department}
+          {departmentData.map((d) => (
+            <option key={d.department} value={d.department}>
+              {d.department}
             </option>
           ))}
         </select>
@@ -158,10 +158,12 @@ function EmailSettingsRow({ setting, departmentData, onSave, onDelete, onUpdate 
       </td>
       <td className="p-2 flex space-x-4">
         <FaSave
+          title="Save email setting"
           className="text-green-400 hover:text-green-600 cursor-pointer"
           onClick={() => onSave(setting.id)}
         />
         <FaTrashAlt
+          title="Delete email setting"
           className="text-red-400 hover:text-red-600 cursor-pointer"
           onClick={() => onDelete(setting.id)}
         />
@@ -174,9 +176,7 @@ function EmailSettingsRow({ setting, departmentData, onSave, onDelete, onUpdate 
    Main Configuration Component
 -------------------------------------------------------------------------- */
 export default function Configuration() {
-  // Dynamic department hierarchy fetched from /lookup endpoint.
   const [departmentData, setDepartmentData] = useState([]);
-  // Fallback static hierarchy if dynamic data is unavailable.
   const staticData = [
     {
       department: "Policy Management / Underwriting",
@@ -227,23 +227,19 @@ export default function Configuration() {
         }
       ]
     }
-    // ... add remaining department entries as needed.
   ];
 
-  // State for MinIO Bucket Mappings.
   const [bucketMappings, setBucketMappings] = useState([]);
   const [loadingBucket, setLoadingBucket] = useState(true);
   const [errorBucket, setErrorBucket] = useState("");
 
-  // State for Email Notification Settings.
   const [emailSettings, setEmailSettings] = useState([]);
   const [loadingEmail, setLoadingEmail] = useState(true);
   const [errorEmail, setErrorEmail] = useState("");
 
-  // State for Ingestion Mode (default "realtime").
   const [ingestionMode, setIngestionMode] = useState("realtime");
 
-  // Fetch document hierarchy from /lookup endpoint.
+  /* Fetch hierarchy */
   useEffect(() => {
     async function fetchHierarchy() {
       try {
@@ -258,16 +254,14 @@ export default function Configuration() {
           }))
         }));
         setDepartmentData(transformed);
-      } catch (err) {
-        console.error("Failed to fetch department hierarchy", err);
-        // Use static data as fallback.
+      } catch {
         setDepartmentData(staticData);
       }
     }
     fetchHierarchy();
   }, []);
 
-  // Fetch existing Bucket Mappings.
+  /* Fetch bucket mappings */
   useEffect(() => {
     async function fetchBuckets() {
       try {
@@ -275,7 +269,7 @@ export default function Configuration() {
         if (!res.ok) throw new Error("Failed to fetch bucket mappings");
         const data = await res.json();
         setBucketMappings(data);
-      } catch (err) {
+      } catch {
         setErrorBucket("Unable to load bucket mappings.");
       } finally {
         setLoadingBucket(false);
@@ -284,7 +278,7 @@ export default function Configuration() {
     fetchBuckets();
   }, []);
 
-  // Fetch existing Email Settings.
+  /* Fetch email settings */
   useEffect(() => {
     async function fetchEmailSettings() {
       try {
@@ -292,7 +286,7 @@ export default function Configuration() {
         if (!res.ok) throw new Error("Failed to fetch email settings");
         const data = await res.json();
         setEmailSettings(data);
-      } catch (err) {
+      } catch {
         setErrorEmail("Unable to load email settings.");
       } finally {
         setLoadingEmail(false);
@@ -301,166 +295,164 @@ export default function Configuration() {
     fetchEmailSettings();
   }, []);
 
-  // Handlers for Bucket Mapping updates.
+  /* Bucket mapping handlers */
   const handleBucketRowUpdate = (updatedRow) => {
-    setBucketMappings((prev) =>
+    setBucketMappings(prev =>
       prev.map((row) => (row.id === updatedRow.id ? updatedRow : row))
     );
   };
-
   const handleBucketSaveRow = async (id) => {
-    const rowData = bucketMappings.find((r) => r.id === id);
-    if (!rowData) return;
+    const row = bucketMappings.find((r) => r.id === id);
+    if (!row) return;
+    const payload = {
+      bucket_name: row.bucket_name,
+      department: row.department,
+      category: row.category,
+      subcategory: row.subcategory
+    };
     try {
-      // Construct payload using the consistent keys from the mapping object.
-      const payload = {
-        bucket_name: rowData.bucket_name, // use the updated key
-        department: rowData.department,
-        category: rowData.category,
-        subcategory: rowData.subcategory,
-      };
-      console.log("Saving bucket mapping payload:", payload);
-      if (rowData.isNew) {
+      if (row.isNew) {
         const res = await fetch("http://localhost:8000/bucket-mappings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(payload)
         });
         if (!res.ok) throw new Error("POST failed");
-        const savedRow = await res.json();
+        const newRow = await res.json();
         setBucketMappings((prev) =>
-          prev.map((row) => (row.id === id ? savedRow : row))
+          prev.map((r) => (r.id === id ? newRow : r))
         );
       } else {
-        const res = await fetch(`http://localhost:8000/bucket-mappings/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+        const res = await fetch(
+          `http://localhost:8000/bucket-mappings/${id}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          }
+        );
         if (!res.ok) throw new Error("PUT failed");
-        const savedRow = await res.json();
+        const newRow = await res.json();
         setBucketMappings((prev) =>
-          prev.map((row) => (row.id === id ? savedRow : row))
+          prev.map((r) => (r.id === id ? newRow : r))
         );
       }
-    } catch (err) {
+    } catch {
       alert("Failed to save bucket mapping row.");
     }
   };
-
   const handleBucketDeleteRow = async (id) => {
-    const rowData = bucketMappings.find((r) => r.id === id);
-    if (!rowData) return;
-    if (rowData.isNew) {
+    const row = bucketMappings.find((r) => r.id === id);
+    if (!row) return;
+    if (row.isNew) {
       setBucketMappings((prev) => prev.filter((r) => r.id !== id));
       return;
     }
     try {
-      const res = await fetch(`http://localhost:8000/bucket-mappings/${id}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `http://localhost:8000/bucket-mappings/${id}`,
+        { method: "DELETE" }
+      );
       if (!res.ok) throw new Error("DELETE failed");
       setBucketMappings((prev) => prev.filter((r) => r.id !== id));
-    } catch (err) {
+    } catch {
       alert("Failed to delete bucket mapping row.");
     }
   };
-
   const handleAddBucketMapping = () => {
-    const newMapping = {
-      id: Date.now(), // Temporary ID
-      bucket_name: "", // use bucket_name here for consistency
-      department: "",
-      category: "",
-      subcategory: "",
-      isNew: true,
-    };
-    setBucketMappings([...bucketMappings, newMapping]);
+    setBucketMappings((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        bucket_name: "",
+        department: "",
+        category: "",
+        subcategory: "",
+        isNew: true
+      }
+    ]);
   };
 
-  // Handlers for Email Settings rows.
+  /* Email settings handlers */
   const handleEmailRowUpdate = (updatedRow) => {
     setEmailSettings((prev) =>
       prev.map((row) => (row.id === updatedRow.id ? updatedRow : row))
     );
   };
-
   const handleEmailSaveRow = async (id) => {
-    const rowData = emailSettings.find((r) => r.id === id);
-    if (!rowData) return;
+    const row = emailSettings.find((r) => r.id === id);
+    if (!row) return;
+    const payload = {
+      department: row.department,
+      email_addresses: row.email_addresses
+    };
     try {
-      // Construct payload: convert emails to email_addresses
-      const payload = {
-        department: rowData.department,
-        email_addresses: rowData.email_addresses || rowData.emails,
-      };
-      if (rowData.isNew) {
+      if (row.isNew) {
         const res = await fetch("http://localhost:8000/email-settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(payload)
         });
         if (!res.ok) throw new Error("POST failed");
-        const savedRow = await res.json();
+        const newRow = await res.json();
         setEmailSettings((prev) =>
-          prev.map((row) => (row.id === id ? savedRow : row))
+          prev.map((r) => (r.id === id ? newRow : r))
         );
       } else {
-        const res = await fetch(`http://localhost:8000/email-settings/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+        const res = await fetch(
+          `http://localhost:8000/email-settings/${id}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          }
+        );
         if (!res.ok) throw new Error("PUT failed");
-        const savedRow = await res.json();
+        const newRow = await res.json();
         setEmailSettings((prev) =>
-          prev.map((row) => (row.id === id ? savedRow : row))
+          prev.map((r) => (r.id === id ? newRow : r))
         );
       }
-    } catch (err) {
+    } catch {
       alert("Failed to save email settings row.");
     }
   };
-
   const handleEmailDeleteRow = async (id) => {
-    const rowData = emailSettings.find((r) => r.id === id);
-    if (!rowData) return;
-    if (rowData.isNew) {
+    const row = emailSettings.find((r) => r.id === id);
+    if (!row) return;
+    if (row.isNew) {
       setEmailSettings((prev) => prev.filter((r) => r.id !== id));
       return;
     }
     try {
-      const res = await fetch(`http://localhost:8000/email-settings/${id}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `http://localhost:8000/email-settings/${id}`,
+        { method: "DELETE" }
+      );
       if (!res.ok) throw new Error("DELETE failed");
       setEmailSettings((prev) => prev.filter((r) => r.id !== id));
-    } catch (err) {
+    } catch {
       alert("Failed to delete email settings row.");
     }
   };
-
   const handleAddEmailSetting = () => {
-    const newSetting = {
-      id: Date.now(),
-      department: "",
-      email_addresses: "", // use email_addresses for consistency
-      isNew: true,
-    };
-    setEmailSettings([...emailSettings, newSetting]);
+    setEmailSettings((prev) => [
+      ...prev,
+      { id: Date.now(), department: "", email_addresses: "", isNew: true }
+    ]);
   };
 
-  // Handler for saving Ingestion Mode.
+  /* Ingestion mode handler */
   const handleSaveIngestionMode = async () => {
     try {
       const res = await fetch("http://localhost:8000/ingestion-mode", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: ingestionMode }),
+        body: JSON.stringify({ mode: ingestionMode })
       });
       if (!res.ok) throw new Error("Failed to update ingestion mode");
       alert("Ingestion mode saved successfully!");
-    } catch (err) {
+    } catch {
       alert("Failed to save ingestion mode.");
     }
   };
@@ -471,9 +463,9 @@ export default function Configuration() {
         <div className="p-4 space-y-6">
           <h1 className="text-2xl font-bold mb-4">Configuration</h1>
 
-          {/* MinIO Bucket Mapping Section */}
+          {/* AWS S3 Bucket Mapping Section */}
           <div className="bg-[#051530] p-4 rounded mb-6">
-            <h2 className="text-xl font-semibold mb-4">MinIO Bucket Mapping</h2>
+            <h2 className="text-xl font-semibold mb-4">AWS S3 Bucket Mapping</h2>
             {loadingBucket ? (
               <p>Loading bucket mappings...</p>
             ) : errorBucket ? (
@@ -483,7 +475,7 @@ export default function Configuration() {
                 <table className="min-w-full text-sm mb-2">
                   <thead>
                     <tr className="border-b border-gray-700">
-                      <th className="p-2 text-left">Bucket</th>
+                      <th className="p-2 text-left">S3 Bucket Name</th>
                       <th className="p-2 text-left">Department</th>
                       <th className="p-2 text-left">Category</th>
                       <th className="p-2 text-left">Subcategory</th>
@@ -495,7 +487,7 @@ export default function Configuration() {
                       <BucketMappingRow
                         key={mapping.id}
                         mapping={mapping}
-                        departmentData={departmentData.length ? departmentData : staticData}
+                        departmentData={departmentData}
                         onSave={handleBucketSaveRow}
                         onDelete={handleBucketDeleteRow}
                         onUpdate={handleBucketRowUpdate}
@@ -535,7 +527,7 @@ export default function Configuration() {
                       <EmailSettingsRow
                         key={setting.id}
                         setting={setting}
-                        departmentData={departmentData.length ? departmentData : staticData}
+                        departmentData={departmentData}
                         onSave={handleEmailSaveRow}
                         onDelete={handleEmailDeleteRow}
                         onUpdate={handleEmailRowUpdate}

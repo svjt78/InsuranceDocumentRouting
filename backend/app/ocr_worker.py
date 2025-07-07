@@ -1,5 +1,3 @@
-# backend/app/ocr_worker.py
-
 import os
 import json
 import logging
@@ -13,26 +11,28 @@ from PIL import Image
 from pdf2image import convert_from_bytes
 from sqlalchemy.exc import SQLAlchemyError
 
-from .config import MINIO_ENDPOINT, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, TESSERACT_CMD
+from .config import AWS_S3_BUCKET, AWS_REGION, TESSERACT_CMD
 from .database import SessionLocal
 from .destination_service import process_document_destination
 from .llm_classifier import classify_document
 from .pii_masker import mask_pii
 from .rabbitmq import get_rabbitmq_connection
-from .notifications import notify_document  # ← our new notifications module
+from .notifications import notify_document  # our notifications module
+from .models import Document1
 
-# Configure Tesseract
+# ─────────────────────────────────── Configure Tesseract ────────────────────────────────────
 pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
 
-# S3 client
+# ─────────────────────────────────── AWS S3 client ──────────────────────────────────────────
 s3_client = boto3.client(
     "s3",
-    endpoint_url=MINIO_ENDPOINT,
-    aws_access_key_id=AWS_ACCESS_KEY_ID,
-    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    region_name=AWS_REGION,
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
 )
 
-SOURCE_BUCKET = os.getenv("MINIO_BUCKET", "documents")
+# The bucket where input documents are stored
+SOURCE_BUCKET = AWS_S3_BUCKET
 
 logger = logging.getLogger("ocr_worker")
 logger.setLevel(logging.INFO)
@@ -56,9 +56,7 @@ def ocr_from_image_bytes(image_bytes: bytes) -> str:
         logger.error("cv2.imdecode failed")
         return ""
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    _, thresh = cv2.threshold(
-        gray, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU
-    )
+    _, thresh = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
     pil_img = Image.fromarray(thresh)
     try:
         return pytesseract.image_to_string(pil_img)
@@ -134,20 +132,19 @@ def process_document(ch, method, properties, body):
             cls["summary"] = mask_pii(cls["summary"])
             logger.debug("🔒 PII masked in summary")
 
-        # 3) Fetch & update Document record (use Session.get to avoid deprecation)
-        from .models import Document
-        document = db.get(Document, doc_id)
+        # 3) Fetch & update Document1 record
+        document = db.get(Document1, doc_id)
         if not document:
             logger.warning(f"Document not found: {doc_id}")
             ch.basic_ack(delivery_tag=method.delivery_tag)
             return
 
-        document.extracted_text = extracted_text
-        document.department   = cls["department"]
-        document.category     = cls["category"]
-        document.subcategory  = cls["subcategory"]
-        document.summary      = cls["summary"]
-        document.action_items = cls["action_items"]
+        document.extracted_text  = extracted_text
+        document.department      = cls["department"]
+        document.category        = cls["category"]
+        document.subcategory     = cls["subcategory"]
+        document.summary         = cls["summary"]
+        document.action_items    = cls["action_items"]
 
         # 4) Routing / copy
         logger.info("📦 Running destination service")

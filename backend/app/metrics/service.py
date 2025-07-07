@@ -1,6 +1,5 @@
-# backend/app/metrics/service.py
-
 from sqlalchemy.sql import text
+
 
 def status_breakdown(db):
     """
@@ -8,7 +7,7 @@ def status_breakdown(db):
     """
     sql = text("""
         SELECT status, COUNT(*) AS cnt
-        FROM documents
+        FROM documents1
         GROUP BY status;
     """)
     return [
@@ -26,7 +25,7 @@ def daily_volume(db):
         SELECT
             DATE(created_at) AS date,
             COUNT(*)         AS count
-        FROM documents
+        FROM documents1
         GROUP BY DATE(created_at)
         ORDER BY DATE(created_at);
     """)
@@ -38,12 +37,12 @@ def daily_volume(db):
 
 def backlog(db):
     """
-    Returns the total number of documents with status Pending, failed, or No Destination.
+    Returns the total number of documents with status Pending, Failed, or No Destination.
     """
     sql = text("""
         SELECT COUNT(*) AS cnt
-        FROM documents
-        WHERE status IN ('Pending', 'failed', 'No Destination');
+        FROM documents1
+        WHERE status IN ('Pending', 'Failed', 'No Destination');
     """)
     return db.execute(sql).scalar_one()
 
@@ -62,7 +61,7 @@ def avg_latency(db):
         PERCENTILE_CONT(0.99) WITHIN GROUP (
           ORDER BY EXTRACT(EPOCH FROM (updated_at - created_at))
         ) AS p99
-      FROM documents
+      FROM documents1
       WHERE status = 'Processed'
         AND updated_at IS NOT NULL;
     """)
@@ -77,17 +76,17 @@ def avg_latency(db):
 def override_rate(db):
     """
     Returns the percentage of documents overridden, including
-    both 'Overridden%' statuses and 'Processed with Override'.
+    both statuses starting with 'Overridden%' and 'Processed with Override'.
     """
     sql = text("""
         WITH total AS (
-          SELECT COUNT(*) AS t FROM documents
+          SELECT COUNT(*) AS t FROM documents1
         ), over AS (
           SELECT COUNT(*) AS o
-          FROM documents
+          FROM documents1
           WHERE status LIKE 'Overridden%' OR status = 'Processed with Override'
         )
-        SELECT (o::float / t) * 100.0 AS pct
+        SELECT COALESCE((o::float / NULLIF(t,0)) * 100.0, 0) AS pct
         FROM total, over;
     """)
     return db.execute(sql).scalar_one()
@@ -101,15 +100,15 @@ def reroute_success(db):
     sql = text("""
         WITH total AS (
           SELECT COUNT(*) AS t
-          FROM documents
+          FROM documents1
           WHERE status LIKE 'Processed%' OR status = 'No Destination'
         ), rerouted AS (
           SELECT COUNT(*) AS r
-          FROM documents
+          FROM documents1
           WHERE (status LIKE 'Processed%' OR status = 'No Destination')
             AND destination_bucket IS NOT NULL
         )
-        SELECT (r::float / t) * 100.0 AS pct
+        SELECT COALESCE((r::float / NULLIF(t,0)) * 100.0, 0) AS pct
         FROM total, rerouted;
     """)
     return db.execute(sql).scalar_one()

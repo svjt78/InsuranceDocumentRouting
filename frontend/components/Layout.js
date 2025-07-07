@@ -34,7 +34,7 @@ export default function Layout({ children, title = "Insurance Dashboard" }) {
               <ul className="pl-4 mt-2 space-y-1">
                 <li>
                   <Link href="/configuration">
-                    <a className="hover:underline">Settings</a>
+                    <a className="hover:underline">S3 Settings</a>
                   </Link>
                 </li>
                 <li>
