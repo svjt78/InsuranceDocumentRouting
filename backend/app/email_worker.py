@@ -1,3 +1,5 @@
+# backend/app/email_worker.py
+
 import os
 import io
 import time
@@ -10,11 +12,13 @@ from email.header import decode_header
 
 import boto3
 import openai
+import asyncio
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal
 from . import models
 from .config import AWS_REGION, AWS_S3_BUCKET, S3_INPUT_PREFIX, OPENAI_API_KEY
+from .ws_manager import manager  # ← import WebSocket manager for broadcasting
 
 # ─────────────────────────────────── Configuration & Clients ─────────────────────────────────
 logger = logging.getLogger("email_worker")
@@ -190,6 +194,11 @@ def process_message(msg: email.message.Message):
             db.commit()
             db.refresh(doc)
             logger.info("Created Document1 record id=%s", doc.id)
+
+            # Broadcast new document event
+            asyncio.create_task(
+                manager.broadcast({"type": "new_document", "document_id": doc.id})
+            )
         except Exception as e:
             db.rollback()
             logger.exception("DB insert failed: %s", e)

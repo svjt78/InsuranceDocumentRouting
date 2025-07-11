@@ -20,6 +20,11 @@ export default function Layout({ children, title = "Insurance Dashboard" }) {
         <nav>
           <ul>
             <li className="mb-4">
+              <Link href="/account-policy">
+                <a className="hover:underline">Account/Policy View</a>
+              </Link>
+            </li>
+            <li className="mb-4">
               <Link href="/documents">
                 <a className="hover:underline">Documents</a>
               </Link>

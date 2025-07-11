@@ -5,7 +5,7 @@ import uuid
 import json
 import logging
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Body
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Body, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import boto3
@@ -20,6 +20,7 @@ from .email_settings import router as email_settings_router
 from .routes.doc_hierarchy import router as doc_hierarchy_router
 from .seed_data.seed_hierarchy import run_seed
 from .metrics.router import router as metrics_router
+from .api.account_policy import router as account_policy_router
 from .destination_service import process_document_destination
 from .config import (
     AWS_REGION,
@@ -28,6 +29,7 @@ from .config import (
     OUTBOX_POLL_INTERVAL,
     PRESIGNED_URL_EXPIRES_IN,
 )
+from .ws_manager import manager  # ← import the WebSocket ConnectionManager
 
 # ───────────────────────────────────────── setup ───────────────────────────────────────────
 setup_logging()
@@ -93,6 +95,17 @@ def startup() -> None:
     except ClientError as e:
         logger.exception("Unable to access S3 bucket '%s': %s", AWS_S3_BUCKET, e)
         raise RuntimeError(f"Cannot access S3 bucket: {AWS_S3_BUCKET}")
+
+# ───────────────────────────────────────── WebSocket ────────────────────────────────────────
+@app.websocket("/ws/accounts")
+async def accounts_updates(ws: WebSocket):
+    await manager.connect(ws)
+    try:
+        while True:
+            # keep connection alive (no incoming messages expected)
+            await ws.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(ws)
 
 # ───────────────────────────────────────── API – upload ──────────────────────────────────────
 @app.post("/upload")
@@ -176,9 +189,12 @@ async def upload_document(
     finally:
         out_db.close()
 
+    # Broadcast WebSocket message to notify clients
+    await manager.broadcast({"type": "new_document", "document_id": doc.id})
+
     return {"message": "Uploaded successfully", "document_id": doc.id}
 
-# ───────────────────────────────────────── API – list & detail ─────────────────────────────────
+# ───────────────────────────────── API – list & detail ─────────────────────────────────────
 @app.get("/documents")
 def get_documents(db: Session = Depends(get_db)):
     docs = (
@@ -255,7 +271,6 @@ def get_document(doc_id: int, db: Session = Depends(get_db)):
         "email_error": d.email_error,
     }
 
-# ─────────────────────────────────────── API – override (synchronous) ─────────────────────────
 @app.post("/document/{doc_id}/override")
 def override_document(
     doc_id: int,
@@ -344,7 +359,6 @@ def override_document(
         "email_error": d.email_error,
     }
 
-# ────────────────────────────────────── soft-delete ─────────────────────────────────────────
 @app.delete("/document/{doc_id}", status_code=204)
 def delete_document(doc_id: int, db: Session = Depends(get_db)):
     d = db.query(models.Document1).filter(models.Document1.id == doc_id).first()
@@ -358,7 +372,6 @@ def delete_document(doc_id: int, db: Session = Depends(get_db)):
         logger.exception("Delete failed: %s", e)
         raise HTTPException(status_code=500, detail="Delete failed")
 
-# ───────────────────────────────── ingestion-mode endpoints ─────────────────────────────────
 from pydantic import BaseModel
 
 class IngestionModePayload(BaseModel):
@@ -382,3 +395,4 @@ app.include_router(bucket_mappings_router, prefix="/bucket-mappings", tags=["Buc
 app.include_router(email_settings_router, prefix="/email-settings", tags=["Email Settings"])
 app.include_router(doc_hierarchy_router, prefix="/lookup", tags=["Lookup"])
 app.include_router(metrics_router)
+app.include_router(account_policy_router)

@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import threading
+import asyncio
 
 import boto3
 import cv2
@@ -17,10 +18,12 @@ from .destination_service import process_document_destination
 from .llm_classifier import classify_document
 from .pii_masker import mask_pii
 from .rabbitmq import get_rabbitmq_connection
-from .notifications import notify_document  # our notifications module
+from .notifications import notify_document
 from .models import Document1
+from .metadata_extractor import extract_metadata  # shared metadata extractor
+from .ws_manager import manager  # ← import WebSocket manager for broadcasting
 
-# ─────────────────────────────────── Configure Tesseract ────────────────────────────────────
+# ─────────────────────────────────── Configure Tesseract ───────────────────────────────────
 pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
 
 # ─────────────────────────────────── AWS S3 client ──────────────────────────────────────────
@@ -139,14 +142,31 @@ def process_document(ch, method, properties, body):
             ch.basic_ack(delivery_tag=method.delivery_tag)
             return
 
-        document.extracted_text  = extracted_text
-        document.department      = cls["department"]
-        document.category        = cls["category"]
-        document.subcategory     = cls["subcategory"]
-        document.summary         = cls["summary"]
-        document.action_items    = cls["action_items"]
+        # Always update OCR text
+        document.extracted_text = extracted_text
 
-        # 4) Routing / copy
+        # Only extract metadata if still default placeholders
+        if (
+            document.account_number == "XXXX"
+            and document.policyholder_name == "XXXX"
+            and document.policy_number == "XXXX"
+            and document.claim_number == "XXXX"
+        ):
+            metadata = extract_metadata("", "", extracted_text)
+            logger.info(f"🔑 Extracted metadata: {metadata}")
+            document.account_number    = metadata.get("account_number", "XXXX")
+            document.policyholder_name = metadata.get("policyholder_name", "XXXX")
+            document.policy_number     = metadata.get("policy_number", "XXXX")
+            document.claim_number      = metadata.get("claim_number", "XXXX")
+
+        # 4) Update classification fields
+        document.department   = cls["department"]
+        document.category     = cls["category"]
+        document.subcategory  = cls["subcategory"]
+        document.summary      = cls["summary"]
+        document.action_items = cls["action_items"]
+
+        # 5) Routing / copy
         logger.info("📦 Running destination service")
         success, error_msg, dest_bucket, dest_key = process_document_destination(
             document, db, s3_client, SOURCE_BUCKET
@@ -169,10 +189,18 @@ def process_document(ch, method, properties, body):
         db.commit()
         logger.info(f"✔ DocID={doc_id} status={document.status}")
 
-        # 5) Acknowledge RabbitMQ
+        # Broadcast new document event after commit
+        try:
+            asyncio.create_task(
+                manager.broadcast({"type": "new_document", "document_id": document.id})
+            )
+        except Exception as e:
+            logger.exception(f"Failed to broadcast WebSocket message: {e}")
+
+        # 6) Acknowledge RabbitMQ
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
-        # 6) Fire off notification in background
+        # 7) Fire off notification in background
         try:
             threading.Thread(
                 target=notify_document,
