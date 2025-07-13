@@ -1,8 +1,7 @@
-# backend/app/api/account_policy.py
-
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict
+from datetime import datetime
 from pydantic import BaseModel
 
 from ..database import SessionLocal
@@ -11,12 +10,12 @@ from ..models import Document1
 router = APIRouter(prefix="/accounts", tags=["Accounts"])
 
 # ─── Schemas ─────────────────────────────────────────────────────────────────────────────
-
 class DocumentSchema(BaseModel):
     id: int
     filename: str
     s3_key: str
     department: Optional[str]
+    updated_at: datetime
 
 class ClaimSchema(BaseModel):
     claim_number: str
@@ -46,7 +45,6 @@ def get_db():
 
 
 # ─── Endpoint ─────────────────────────────────────────────────────────────────────────────
-
 @router.get("/", response_model=List[AccountSchema])
 def list_accounts(db: Session = Depends(get_db)):
     # Fetch all documents
@@ -74,6 +72,7 @@ def list_accounts(db: Session = Depends(get_db)):
             {"department": dept_name}
         )
 
+        # Include updated_at timestamp for sorting
         if dept_name == "Claims":
             cla_map = dept.setdefault("claims", {})
             cla = cla_map.setdefault(
@@ -84,7 +83,8 @@ def list_accounts(db: Session = Depends(get_db)):
                 "id": d.id,
                 "filename": d.filename,
                 "s3_key": d.s3_key,
-                "department": d.department
+                "department": d.department,
+                "updated_at": d.updated_at
             })
         else:
             docs_list = dept.setdefault("documents", [])
@@ -92,8 +92,23 @@ def list_accounts(db: Session = Depends(get_db)):
                 "id": d.id,
                 "filename": d.filename,
                 "s3_key": d.s3_key,
-                "department": d.department
+                "department": d.department,
+                "updated_at": d.updated_at
             })
+
+    # Sort each documents list by updated_at descending (newest first)
+    for acct_data in grouping.values():
+        for pol_data in acct_data["policies"].values():
+            for dept_data in pol_data["departments"].values():
+                if dept_data.get("documents") is not None:
+                    dept_data["documents"].sort(
+                        key=lambda doc: doc["updated_at"], reverse=True
+                    )
+                if dept_data.get("claims") is not None:
+                    for claim_data in dept_data["claims"].values():
+                        claim_data["documents"].sort(
+                            key=lambda doc: doc["updated_at"], reverse=True
+                        )
 
     # Build Pydantic models for response
     result: List[AccountSchema] = []

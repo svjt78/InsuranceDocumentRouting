@@ -1,5 +1,3 @@
-# backend/app/email_worker.py
-
 import os
 import io
 import time
@@ -12,13 +10,12 @@ from email.header import decode_header
 
 import boto3
 import openai
-import asyncio
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal
 from . import models
 from .config import AWS_REGION, AWS_S3_BUCKET, S3_INPUT_PREFIX, OPENAI_API_KEY
-from .ws_manager import manager  # ← import WebSocket manager for broadcasting
+from .metadata_extractor import extract_metadata  # unified extractor with synonyms
 
 # ─────────────────────────────────── Configuration & Clients ─────────────────────────────────
 logger = logging.getLogger("email_worker")
@@ -35,7 +32,11 @@ EMAIL_POLL_INTERVAL = int(os.getenv("EMAIL_POLL_INTERVAL", "60"))  # seconds
 # AWS_REGION, AWS_S3_BUCKET, S3_INPUT_PREFIX imported
 
 # OpenAI settings
-openai.api_key = OPENAI_API_KEY
+environ_key = OPENAI_API_KEY
+if not environ_key:
+    logger.error("Missing OPENAI_API_KEY environment variable")
+    raise RuntimeError("OPENAI_API_KEY must be set")
+openai.api_key = environ_key
 
 # Validate required env
 for var_name, var_value in (
@@ -57,60 +58,13 @@ s3_client   = boto3.client(
     aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
 )
 
-# ─────────────────────────────────── Helper: extract metadata via LLM ─────────────────────────
-def extract_metadata(subject: str, body: str, attachment_text: str) -> dict:
-    prompt = f"""
-You are an assistant that extracts insurance fields from email and document text. If a field is missing, return "XXXX".
-
-Example:
-Subject: "Policy Update"
-Body: "Hello, Account: 12345; Policyholder: Jane Smith"
-Attachment text: "Claim Number: 67890; Policy Number: 54321"
-Output:
-{{
-  "account_number": "12345",
-  "policyholder_name": "Jane Smith",
-  "policy_number": "54321",
-  "claim_number": "67890"
-}}
-
-Now process:
-Email subject and body:
-{subject}\n{body}
-
-Attachment text:
-{attachment_text}
-"""
-    try:
-        resp = openai.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0,
-            max_tokens=256
-        )
-        content = resp.choices[0].message.content.strip()
-        data = json.loads(content)
-        return {
-            "account_number":    data.get("account_number")    or "XXXX",
-            "policyholder_name": data.get("policyholder_name") or "XXXX",
-            "policy_number":     data.get("policy_number")     or "XXXX",
-            "claim_number":      data.get("claim_number")      or "XXXX",
-        }
-    except Exception as e:
-        logger.exception("LLM metadata extraction failed: %s", e)
-        return {
-            "account_number":    "XXXX",
-            "policyholder_name": "XXXX",
-            "policy_number":     "XXXX",
-            "claim_number":      "XXXX",
-        }
-
 # ─────────────────────────────────── Process single email ─────────────────────────────────────
 def process_message(msg: email.message.Message):
     # Decode subject
     subj, encoding = decode_header(msg.get("Subject"))[0]
     if isinstance(subj, bytes):
         subj = subj.decode(encoding or "utf-8", errors="ignore")
+
     # Extract plaintext body
     body = ""
     if msg.is_multipart():
@@ -143,7 +97,7 @@ def process_message(msg: email.message.Message):
         # Unique S3 key
         file_id = str(uuid.uuid4())
         key_name = f"{file_id}_{fname}"
-        s3_key = f"{S3_INPUT_PREFIX}/{key_name}"
+        s3_key = f"{S3_INPUT_PREFIX.rstrip('/')}/{key_name}"
 
         # Upload to S3
         try:
@@ -172,12 +126,8 @@ def process_message(msg: email.message.Message):
             continue
 
         # OCR
-        if fname.lower().endswith(".pdf"):
-            text_data = ocr_from_pdf_bytes(content)
-        else:
-            text_data = ocr_from_image_bytes(content)
-
-        # Extract metadata
+        text_data = io.BytesIO(content).getvalue()
+        # extract_metadata will use shared prompt with synonyms
         metadata = extract_metadata(subj, body, text_data)
 
         # Persist Document1
@@ -194,34 +144,14 @@ def process_message(msg: email.message.Message):
             db.commit()
             db.refresh(doc)
             logger.info("Created Document1 record id=%s", doc.id)
-
-            # Broadcast new document event
-            asyncio.create_task(
-                manager.broadcast({"type": "new_document", "document_id": doc.id})
-            )
         except Exception as e:
             db.rollback()
             logger.exception("DB insert failed: %s", e)
-            # Record failed status
-            try:
-                db.add(models.Document1(
-                    filename=fname,
-                    s3_key=s3_key,
-                    extracted_text=text_data,
-                    status="Failed",
-                    error_message=str(e),
-                    **{k: metadata.get(k, "XXXX") for k in [
-                        "account_number", "policyholder_name", "policy_number", "claim_number"
-                    ]}
-                ))
-                db.commit()
-            except Exception:
-                db.rollback()
-            finally:
-                db.close()
             continue
+        finally:
+            db.close()
 
-        # Insert into outbox instead of direct publish
+        # Insert into outbox
         db_out: Session = SessionLocal()
         try:
             out = models.MessageOutbox(

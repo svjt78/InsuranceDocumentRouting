@@ -205,30 +205,42 @@ export default function AccountPolicyView({ data, onRefresh }) {
                                   defaultOpen={claimOpen}
                                 >
                                   <ul className="list-disc list-inside text-gray-300">
-                                    {cl.documents.map(doc => (
-                                      <li key={doc.id} className="py-1">
-                                        <Link href={`/document/${doc.id}`}>
-                                          <a className="hover:underline">
-                                            {doc.filename}
-                                          </a>
-                                        </Link>
-                                      </li>
-                                    ))}
+                                    {cl.documents.map(doc => {
+                                      const ts = new Date(doc.updated_at)
+                                        .toISOString()
+                                        .slice(0, 19)
+                                        .replace('T', ' ');
+                                      return (
+                                        <li key={doc.id} className="py-1">
+                                          <Link href={`/document/${doc.id}`}>
+                                            <a className="hover:underline">
+                                              {doc.filename} – {ts}
+                                            </a>
+                                          </Link>
+                                        </li>
+                                      );
+                                    })}
                                   </ul>
                                 </CollapseSection>
                               );
                             })
                           ) : (
                             <ul className="list-disc list-inside text-gray-300">
-                              {dept.documents.map(doc => (
-                                <li key={doc.id} className="py-1">
-                                  <Link href={`/document/${doc.id}`}>
-                                    <a className="hover:underline">
-                                      {doc.filename}
-                                    </a>
-                                  </Link>
-                                </li>
-                              ))}
+                              {dept.documents.map(doc => {
+                                const ts = new Date(doc.updated_at)
+                                  .toISOString()
+                                  .slice(0, 19)
+                                  .replace('T', ' ');
+                                return (
+                                  <li key={doc.id} className="py-1">
+                                    <Link href={`/document/${doc.id}`}>
+                                      <a className="hover:underline">
+                                        {doc.filename} – {ts}
+                                      </a>
+                                    </Link>
+                                  </li>
+                                );
+                              })}
                             </ul>
                           )}
                         </CollapseSection>
