@@ -21,6 +21,12 @@ from .routes.doc_hierarchy import router as doc_hierarchy_router
 from .seed_data.seed_hierarchy import run_seed
 from .metrics.router import router as metrics_router
 from .api.account_policy import router as account_policy_router
+
+# New API v1 routers
+from .api.v1.accounts import router as accounts_v1_router
+from .api.v1.policies import router as policies_v1_router
+from .api.v1.claims import router as claims_v1_router
+
 from .destination_service import process_document_destination
 from .config import (
     AWS_REGION,
@@ -396,3 +402,6 @@ app.include_router(email_settings_router, prefix="/email-settings", tags=["Email
 app.include_router(doc_hierarchy_router, prefix="/lookup", tags=["Lookup"])
 app.include_router(metrics_router)
 app.include_router(account_policy_router)
+app.include_router(accounts_v1_router)                  
+app.include_router(policies_v1_router)                  
+app.include_router(claims_v1_router)                    
