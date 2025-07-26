@@ -4,7 +4,10 @@ Provides functions to fetch documents by account, policy, or claim, and to build
 """
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
-
+from zoneinfo import ZoneInfo
+from botocore.exceptions import ClientError
+from ..config import AWS_S3_BUCKET, PRESIGNED_URL_EXPIRES_IN
+from app.s3_client import s3_client
 from ..models import Document1
 
 
@@ -46,9 +49,19 @@ def _build_doc_item(d: Document1) -> Dict[str, Any]:
         "status": d.status,
         "destination_bucket": d.destination_bucket,
         "error_message": d.error_message,
-        "updated_at": d.updated_at.isoformat() if d.updated_at else None,
+        # Format updated_at in US locale (MM/DD/YYYY, hh:mm:ss AM/PM) in Eastern Time
+        "updated_at": (
+            d.updated_at
+            .astimezone(ZoneInfo("America/New_York"))
+            .strftime("%m/%d/%Y, %I:%M:%S %p")
+            if d.updated_at else None
+        ),
         "filename": d.filename,
-        "download_url": f"/documents/{d.id}/download"
+        "download_url": s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": AWS_S3_BUCKET, "Key": d.destination_key},
+            ExpiresIn=PRESIGNED_URL_EXPIRES_IN,
+        )
     }
 
     # Omit claim_number if not present

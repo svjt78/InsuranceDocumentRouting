@@ -16,6 +16,7 @@ from .database import SessionLocal
 from . import models
 from .config import AWS_REGION, AWS_S3_BUCKET, S3_INPUT_PREFIX, OPENAI_API_KEY
 from .metadata_extractor import extract_metadata  # unified extractor with synonyms
+from .ocr_worker import perform_ocr  # reuse OCR logic (first page only)
 
 # ─────────────────────────────────── Configuration & Clients ─────────────────────────────────
 logger = logging.getLogger("email_worker")
@@ -125,10 +126,19 @@ def process_message(msg: email.message.Message):
                 db_fail.close()
             continue
 
-        # OCR
+        # Prepare raw bytes for storage
         text_data = io.BytesIO(content).getvalue()
-        # extract_metadata will use shared prompt with synonyms
-        metadata = extract_metadata(subj, body, text_data)
+
+        # 1) Perform OCR on first page for metadata extraction
+        try:
+            ocr_text = perform_ocr(s3_key)
+            logger.info("OCR output length for %s: %d chars", s3_key, len(ocr_text))
+        except Exception as e:
+            logger.exception("OCR failed for %s: %s", s3_key, e)
+            ocr_text = ""
+
+        # 2) Extract metadata from OCR text and email content
+        metadata = extract_metadata(subj, body, ocr_text)
 
         # Persist Document1
         db: Session = SessionLocal()

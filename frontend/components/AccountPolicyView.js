@@ -207,9 +207,11 @@ export default function AccountPolicyView({ data, onRefresh }) {
                                   <ul className="list-disc list-inside text-gray-300">
                                     {cl.documents.map(doc => {
                                       const ts = new Date(doc.updated_at)
-                                        .toISOString()
-                                        .slice(0, 19)
-                                        .replace('T', ' ');
+                                        .toLocaleString("en-US", {
+                                          dateStyle: "long",
+                                          timeStyle: "medium",
+                                          hour12: true
+                                        });
                                       return (
                                         <li key={doc.id} className="py-1">
                                           <Link href={`/document/${doc.id}`}>
@@ -228,9 +230,11 @@ export default function AccountPolicyView({ data, onRefresh }) {
                             <ul className="list-disc list-inside text-gray-300">
                               {dept.documents.map(doc => {
                                 const ts = new Date(doc.updated_at)
-                                  .toISOString()
-                                  .slice(0, 19)
-                                  .replace('T', ' ');
+                                  .toLocaleString("en-US", {
+                                    dateStyle: "long",
+                                    timeStyle: "medium",
+                                    hour12: true
+                                  });
                                 return (
                                   <li key={doc.id} className="py-1">
                                     <Link href={`/document/${doc.id}`}>

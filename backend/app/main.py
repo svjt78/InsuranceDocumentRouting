@@ -6,6 +6,7 @@ import json
 import logging
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Body, WebSocket, WebSocketDisconnect
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import boto3
@@ -26,6 +27,7 @@ from .api.account_policy import router as account_policy_router
 from .api.v1.accounts import router as accounts_v1_router
 from .api.v1.policies import router as policies_v1_router
 from .api.v1.claims import router as claims_v1_router
+from .s3_client import s3_client
 
 from .destination_service import process_document_destination
 from .config import (
@@ -46,12 +48,12 @@ if not AWS_S3_BUCKET:
     logger.error("Missing AWS_S3_BUCKET environment variable")
     raise RuntimeError("AWS_S3_BUCKET must be set")
 
-s3_client = boto3.client(
-    "s3",
-    region_name=AWS_REGION,
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-)
+#s3_client = boto3.client(
+#    "s3",
+#    region_name=AWS_REGION,
+#    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+#    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+#)
 
 # simple in-memory toggle
 _ingestion_mode = os.getenv("INGESTION_MODE", "realtime")
@@ -237,6 +239,7 @@ def get_download_url(doc_id: int, db: Session = Depends(get_db)):
     d = db.query(models.Document1).filter(models.Document1.id == doc_id).first()
     if not d or not d.destination_key:
         raise HTTPException(status_code=404, detail="Document not found or not yet routed")
+
     try:
         url = s3_client.generate_presigned_url(
             "get_object",
@@ -246,7 +249,9 @@ def get_download_url(doc_id: int, db: Session = Depends(get_db)):
     except ClientError as e:
         logger.exception("Error generating presigned URL: %s", e)
         raise HTTPException(status_code=500, detail="Failed to generate download URL")
-    return {"url": url}
+
+    # Redirect the client directly to the S3 presigned URL, triggering the download
+    return RedirectResponse(url)
 
 @app.get("/document/{doc_id}")
 def get_document(doc_id: int, db: Session = Depends(get_db)):
