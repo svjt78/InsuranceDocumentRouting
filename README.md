@@ -32,8 +32,7 @@ All activity is surfaced in real-time dashboards with full audit trails.
 | **Security & PII**              | SSN masking, RBAC, TLS-only comms, full audit logs                                             |
 
 ---
-
-## At-a-Glance Architecture
+# At-a-Glance Architecture
 
 ```mermaid
 flowchart LR
@@ -50,8 +49,6 @@ flowchart LR
     S3DST --> DB[(PostgreSQL)]
     DB --> DASH[Metrics Dashboard]
 
-
-Everything ships in one docker-compose up.
 
 ## Tech Stack
 
