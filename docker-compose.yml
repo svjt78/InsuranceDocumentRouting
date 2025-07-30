@@ -1,0 +1,125 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:14
+    container_name: db
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    env_file:
+      - .env
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./alembic.ini:/app/alembic.ini
+      - ./alembic:/app/alembic
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    env_file:
+      - .env
+
+  ocr_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: ocr_worker
+    command: python -u -m app.ocr_worker
+    volumes:
+      - ./backend:/app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    restart: on-failure
+    env_file:
+      - .env
+
+  outbox_publisher:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: outbox_publisher
+    command: python -u -m app.outbox_publisher
+    volumes:
+      - ./backend:/app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    restart: on-failure
+    env_file:
+      - .env
+
+  email_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: email_worker
+    command: python -u -m app.email_worker
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure
+    env_file:
+      - .env
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: frontend
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      backend:
+        condition: service_started
+    env_file:
+      - .env
+
+volumes:
+  db-data:
+    external: true
+
+  rabbitmq-data:
+    driver: local
