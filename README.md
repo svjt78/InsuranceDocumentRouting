@@ -31,24 +31,6 @@ All activity is surfaced in real-time dashboards with full audit trails.
 | **Operational Visibility**      | Live backlog, SLA latency heatmaps, reroute ratios, failure breakdowns                          |
 | **Security & PII**              | SSN masking, RBAC, TLS-only comms, full audit logs                                             |
 
----
-# At-a-Glance Architecture
-
-```mermaid
-flowchart LR
-    subgraph Intake
-        UI[User Upload] --> OB
-        Email[Email Worker] --> OB
-        S3[S3 Watcher] --> OB
-    end
-    OB[Outbox Table] --> MQ((RabbitMQ))
-    MQ --> OCR[OCR / Metadata Worker]
-    OCR --> CLS[LLM Classifier]
-    CLS --> RTR[Router]
-    RTR --> S3DST[(Destination S3)]
-    S3DST --> DB[(PostgreSQL)]
-    DB --> DASH[Metrics Dashboard]
-
 
 ## Tech Stack
 
