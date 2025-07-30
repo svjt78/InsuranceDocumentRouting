@@ -47,8 +47,9 @@ flowchart LR
     OCR --> CLS[LLM Classifier]
     CLS --> RTR[Router]
     RTR --> S3DST[(Destination S3)]
-    RTR --> DB[(PostgreSQL)]
+    S3DST --> DB[(PostgreSQL)]
     DB --> DASH[Metrics Dashboard]
+
 
 Everything ships in one docker-compose up.
 
