@@ -1,189 +1,106 @@
-```markdown
-# 🏢 Insurance Document Management (InsDocRouting)
+Insurance Document Routing
+# AI-powered intake, classification, and routing that turns every insurance document into instant, actionable data.
 
-An intelligent, AI-driven document management and routing system for insurance operations.
-This application automates the ingestion, classification,
-and routing of unstructured documents—whether uploaded manually,
-sent via email, or dropped into AWS S3 buckets.
+## Why InsDocRouting?
 
-It extracts key information from document contents and email metadata using OCR and LLMs,
-classifies documents into a configurable hierarchy,
-and routes them to destination buckets. Real-time dashboards, admin tools,
-and override capabilities enable transparency and operational control.
+Insurance carriers and TPAs handle **tens of thousands of unstructured documents** every day—policies, endorsements, claim photos, correspondence, and more.  
+Manual triage slows down service, drives up cost, and risks compliance gaps.  
 
----
+**InsDocRouting** turns that paper flood into a friction-free, API-driven workflow:
 
-## 📦 Features
+* **Ingest anywhere** – UI upload, S3 drop, or email feed.  
+* **Understand** – OCR & LLM extract key facts (account, policy, claim).  
+* **Decide** – AI classifier slots each doc into a configurable 3-tier taxonomy.  
+* **Deliver** – Routed to the correct S3 bucket and downstream system—zero clicks.
 
-### 🔍 Document Ingestion & Classification
-- Upload documents (PDF, image, etc.) via:
-  - Frontend interface
-  - AWS S3 bucket watch
-  - Email (IMAP-based ingestion of attachments)
-- Extract text using OCR worker (Tesseract + OpenCV).
-- Classify documents using LLM against configurable hierarchy.
-- Auto-route to appropriate AWS S3 destination bucket.
-
-### 📧 Email-Based Ingestion & Metadata Extraction
-- Fetch documents directly from a configured email inbox.
-- Extract and OCR attachments (PDF, images).
-- Parse **email subject**, **body**, and **attachment content** to extract:
-  - 🧾 **Account Number**
-  - 👤 **Policyholder Name**
-  - 🪪 **Policy Number**
-  - 🧷 **Claim Number**
-- Store extracted metadata in PostgreSQL alongside the document record.
-- Use metadata for enhanced classification, matching, or routing logic.
-
-### 🧠 Hierarchical Document Classification
-- Three-tier structure: **Department → Category → Subcategory**
-- Tree-view UI for managing hierarchy.
-- Editable and expandable by admin users.
-
-### ⚙️ Bucket Mapping & Overrides
-- Map subcategories to AWS S3 destination buckets.
-- Auto-create destination buckets if not already present.
-- Admin override of classification and rerouting.
-- View parsed metadata during override for informed decision-making.
-
-### 📊 Real-Time Dashboard & Metrics
-- Visual widgets for:
-  - Document status: Pending, Processed, Failed, Overridden, Rerouted
-  - Daily volume trends
-  - Latency analysis
-  - Failure types
-  - Override and reroute percentages
-- Filter and drill down by department, date, or status.
+All activity is surfaced in real-time dashboards with full audit trails.
 
 ---
 
-## 🏗️ Tech Stack
+## Feature Highlights
 
-| Layer           | Tech Stack                                 |
-|------------------|---------------------------------------------|
-| **Frontend**     | Next.js, React.js, Tailwind CSS, Recharts   |
-| **Backend**      | FastAPI, Python, SQLAlchemy, Pydantic       |
-| **OCR**          | Tesseract, OpenCV                           |
-| **AI Classification** | OpenAI GPT (or compatible LLM)          |
-| **Storage**      | AWS S3 (Document Buckets), PostgreSQL       |
-| **Messaging (optional)** | RabbitMQ (for async processing)        |
-| **Deployment**   | Docker, Docker Compose                      |
-
----
-
-## 🚀 How It Works
-
-1. **Ingestion**  
-   - Documents arrive via UI, AWS S3 bucket, or email inbox.
-2. **OCR & Text Extraction**  
-   - `ocr_worker.py` converts scanned PDFs/images into raw text.
-3. **Classification**  
-   - `classifier.py` uses LLM to assign Department, Category, Subcategory.
-4. **Email Parsing**  
-   - Email subject and body parsed for account and policy metadata.
-5. **Routing**  
-   - `destination_service.py` maps subcategory to AWS S3 destination.
-6. **Monitoring & Overrides**  
-   - Admin dashboard displays statuses, allows rerouting, and shows metrics.
+| Domain | What you get |
+|-----------|--------------|
+| **Multi-Channel Intake** | Drag-and-drop UI, S3 landing bucket watcher, high-volume email attachment capture |
+| **Smart Extraction** | Tesseract + OpenCV OCR, GPT-powered entity parsing (Account #, Policy #, Claim #, Insured Name) |
+| **Guidewire-Friendly Model** | Account → Policy → Claim hierarchy stored in PostgreSQL for instant lookup |
+| **Configurable Classification** | Admin UI to manage Department › Category › Subcategory tree; overrides in one click |
+| **Autonomous Routing** | Subcategory ↦ destination S3 bucket with auto-creation, retries, and DLQ |
+| **Reliable Async Core** | Outbox table + RabbitMQ ensures at-least-once delivery without race conditions |
+| **Operational Visibility** | Live backlog, SLA latency heatmaps, reroute ratios, failure breakdowns |
+| **Security & PII** | SSN masking, RBAC, TLS-only comms, full audit logs |
 
 ---
 
-## 📁 Project Structure (Simplified)
+## At-a-Glance Architecture
 
-```
+```mermaid
+flowchart LR
+    subgraph Intake
+        UI[User Upload] --> OB
+        Email[Email Worker] --> OB
+        S3[S3 Watcher] --> OB
+    end
+    OB[Outbox Table] --> MQ((RabbitMQ))
+    MQ --> OCR[OCR / Metadata Worker]
+    OCR --> CLS[LLM Classifier]
+    CLS --> RTR[Router]
+    RTR --> S3DST[(Destination S3)]
+    RTR --> DB[(PostgreSQL)]
+    DB --> DASH[Metrics Dashboard]
 
-backend/
-├── app/
-│   ├── main.py
-│   ├── models.py
-│   ├── db.py
-│   ├── classifier.py
-│   ├── ocr\_worker.py
-│   ├── email\_ingestor.py
-│   ├── destination\_service.py
-│   └── ...
-frontend/
-├── pages/
-├── components/
-├── metrics/widgets/
-├── styles/
-└── ...
-docker-compose.yml
-README.md
+Everything ships in one docker-compose up.
 
-````
-
----
-
-## ⚙️ Setup Instructions
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/your-username/insurance-doc-mgmt.git
+## Tech Stack
+Layer	Tech
+Backend	FastAPI • Python 3.11 • SQLAlchemy • Pydantic
+Frontend	Next.js (React 18) • Tailwind CSS • Recharts
+AI / NLP	OpenAI GPT (pluggable)
+OCR	Tesseract • OpenCV
+Messaging	RabbitMQ (Outbox pattern)
+Storage	AWS S3 • PostgreSQL
+Container	Docker & Compose
+ 
+## Get Started in 5 Minutes
+bash
+CopyEdit
+# 1. Clone
+git clone https://github.com/your-org/insurance-doc-mgmt.git
 cd insurance-doc-mgmt
-````
 
-### 2. Configure Environment Variables
+# 2. Configure
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+# → fill in AWS keys, DB creds, OpenAI key, etc.
 
-Create `.env` files for backend and frontend:
-
-```env
-# Backend (.env)
-POSTGRES_URL=postgresql://user:pass@db:5432/docs
-S3_ENDPOINT=https://s3.amazonaws.com
-S3_BUCKET_PREFIX=ins-docs
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
-OPENAI_API_KEY=your_openai_key
-IMAP_SERVER=imap.mailserver.com
-EMAIL_USERNAME=docrouter@yourdomain.com
-EMAIL_PASSWORD=your_email_password
-```
-
-### 3. Start the App with Docker
-
-```bash
+# 3. Launch
 docker-compose up --build
-```
 
-### 4. Access the App
+# 4. Explore
+# UI         → http://localhost:3000
+# API docs   → http://localhost:8000/docs
+ 
+## Security & PII
+•	Masking – SSNs and other PII are stored only in redacted form.
+•	RBAC – Admins may override routing; every action is timestamped and logged.
+•	Transport Security – All external endpoints (API, email, S3) require TLS.
+•	Compliance Ready – Architecture aligns with SOC 2 “Security” and “Confidentiality” controls.
+ 
+## Roadmap (selected)
+•	Feedback-loop retraining for the classifier
+•	SLA breach alerts via Slack / Teams
+•	Resumable bulk uploads with client-side checksum
+•	Fine-grained tenant isolation & audit export
+•	ACORD / ISO smart-form parsing
+ 
+## Contributing
+1.	Fork the repo & create your branch: git checkout -b feature/my-feature
+2.	Commit with Conventional Commits (feat: …, fix: …)
+3.	Push & open a PR – the CI pipeline will lint, test, and build containers.
+See CONTRIBUTING.md for full guidelines.
+ 
+ 
+## License
+Released under the MIT License. Commercial support available—contact the maintainer for details.
 
-* **Frontend UI**: `http://localhost:3000`
-* **FastAPI Backend Docs**: `http://localhost:8000/docs`
-
----
-
-## 📊 Sample Dashboard Widgets
-
-* **StatusDonut** – Visualize processed vs failed vs rerouted documents
-* **LatencyBars** – Highlight processing delays
-* **DailyVolumeLine** – Track documents ingested daily
-* **BacklogBig** – Real-time pending backlog display
-* **RerouteDonut** – Show proportion of manually rerouted documents
-
----
-
-## 🧪 Future Enhancements
-
-* 🔄 Feedback-based LLM retraining on misclassifications
-* 📨 Automated alerts on high failure rates or latency spikes
-* 📥 Drag-and-drop local uploads into S3-backed staging area
-* 🔐 Role-based access with audit trails
-* 📎 PDF form field extraction & structured ingestion
-
----
-
-## 👨‍💻 Maintainers
-
-**Suvojit Dutta** – Insurance Domain Architect & AI Solutions Leader
-*Contributions welcome!*
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for guidelines.
-
----
-
-## 📜 License
-
-This project is licensed under the MIT License.
-See the [`LICENSE`](LICENSE) file for details.
 
