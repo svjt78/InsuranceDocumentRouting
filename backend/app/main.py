@@ -27,6 +27,7 @@ from .api.account_policy import router as account_policy_router
 from .api.v1.accounts import router as accounts_v1_router
 from .api.v1.policies import router as policies_v1_router
 from .api.v1.claims import router as claims_v1_router
+from .api.v1.email_webhook import router as webhook_router
 from .s3_client import s3_client
 
 from .destination_service import process_document_destination
@@ -409,4 +410,5 @@ app.include_router(metrics_router)
 app.include_router(account_policy_router)
 app.include_router(accounts_v1_router)                  
 app.include_router(policies_v1_router)                  
-app.include_router(claims_v1_router)                    
+app.include_router(claims_v1_router)  
+app.include_router(webhook_router)                  
