@@ -36,3 +36,10 @@ RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "no-reply@yourdomain.com")
 
 # Presigned URL TTL (in seconds; used for private S3 object access)
 PRESIGNED_URL_EXPIRES_IN = int(os.getenv("PRESIGNED_URL_EXPIRES_IN", "3600"))
+
+#Microsoft Graph API settings
+AZURE_TENANT_ID = os.getenv("AZURE_TENANT_ID")
+AZURE_CLIENT_ID = os.getenv("AZURE_CLIENT_ID")
+AZURE_CLIENT_SECRET = os.getenv("AZURE_CLIENT_SECRET")
+USER_EMAIL = os.getenv("USER_EMAIL")
+ATTACHMENTS_DIR = os.getenv("ATTACHMENTS_DIR", "./attachments")
