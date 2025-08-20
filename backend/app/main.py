@@ -97,13 +97,13 @@ def startup() -> None:
         else:
             logger.info("doc_hierarchy already populated (%s rows)", cnt)
 
-    # Verify AWS S3 bucket exists
-    try:
-        s3_client.head_bucket(Bucket=AWS_S3_BUCKET)
-        logger.info("S3 bucket '%s' accessible.", AWS_S3_BUCKET)
-    except ClientError as e:
-        logger.exception("Unable to access S3 bucket '%s': %s", AWS_S3_BUCKET, e)
-        raise RuntimeError(f"Cannot access S3 bucket: {AWS_S3_BUCKET}")
+    # # Verify AWS S3 bucket exists
+    # try:
+    #     s3_client.head_bucket(Bucket=AWS_S3_BUCKET)
+    #     logger.info("S3 bucket '%s' accessible.", AWS_S3_BUCKET)
+    # except ClientError as e:
+    #     logger.exception("Unable to access S3 bucket '%s': %s", AWS_S3_BUCKET, e)
+    #     raise RuntimeError(f"Cannot access S3 bucket: {AWS_S3_BUCKET}")
 
 # ───────────────────────────────────────── WebSocket ────────────────────────────────────────
 @app.websocket("/ws/accounts")
