@@ -49,12 +49,12 @@ if not AWS_S3_BUCKET:
     logger.error("Missing AWS_S3_BUCKET environment variable")
     raise RuntimeError("AWS_S3_BUCKET must be set")
 
-#s3_client = boto3.client(
-#    "s3",
-#    region_name=AWS_REGION,
-#    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-#    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-#)
+s3_client = boto3.client(
+    "s3",
+    region_name=AWS_REGION,
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+)
 
 # simple in-memory toggle
 _ingestion_mode = os.getenv("INGESTION_MODE", "realtime")
