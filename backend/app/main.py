@@ -49,12 +49,12 @@ if not AWS_S3_BUCKET:
     logger.error("Missing AWS_S3_BUCKET environment variable")
     raise RuntimeError("AWS_S3_BUCKET must be set")
 
-s3_client = boto3.client(
-    "s3",
-    region_name=AWS_REGION,
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-)
+#s3_client = boto3.client(
+#    "s3",
+#    region_name=AWS_REGION,
+#    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+#    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+#)
 
 # simple in-memory toggle
 _ingestion_mode = os.getenv("INGESTION_MODE", "realtime")
@@ -98,12 +98,12 @@ def startup() -> None:
             logger.info("doc_hierarchy already populated (%s rows)", cnt)
 
     # Verify AWS S3 bucket exists
-     try:
-         s3_client.head_bucket(Bucket=AWS_S3_BUCKET)
-         logger.info("S3 bucket '%s' accessible.", AWS_S3_BUCKET)
-     except ClientError as e:
-         logger.exception("Unable to access S3 bucket '%s': %s", AWS_S3_BUCKET, e)
-         raise RuntimeError(f"Cannot access S3 bucket: {AWS_S3_BUCKET}")
+    try:
+        s3_client.head_bucket(Bucket=AWS_S3_BUCKET)
+        logger.info("S3 bucket '%s' accessible.", AWS_S3_BUCKET)
+    except ClientError as e:
+        logger.exception("Unable to access S3 bucket '%s': %s", AWS_S3_BUCKET, e)
+        raise RuntimeError(f"Cannot access S3 bucket: {AWS_S3_BUCKET}")
 
 # ───────────────────────────────────────── WebSocket ────────────────────────────────────────
 @app.websocket("/ws/accounts")
