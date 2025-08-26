@@ -43,3 +43,5 @@ AZURE_CLIENT_ID = os.getenv("AZURE_CLIENT_ID")
 AZURE_CLIENT_SECRET = os.getenv("AZURE_CLIENT_SECRET")
 USER_EMAIL = os.getenv("USER_EMAIL")
 ATTACHMENTS_DIR = os.getenv("ATTACHMENTS_DIR", "./attachments")
+
+EMAIL_POLL_INTERVAL = int(os.getenv("EMAIL_POLL_INTERVAL", "60"))  # seconds
